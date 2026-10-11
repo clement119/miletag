@@ -39,7 +39,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Miletag uses your photos to place your race photo on your print."
+          "photosPermission": "Miletag uses your photos to place your race photo on your print.",
+          "microphonePermission": false
         }
       ],
       "@maplibre/maplibre-react-native"
@@ -48,6 +49,13 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "backgroundColor": "#0A0A0B"
+    "backgroundColor": "#0A0A0B",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "69662fba-f6ff-463f-9947-84a4efadf3b3"
+      }
+    },
+    "owner": "clement119s-team"
   }
 }
