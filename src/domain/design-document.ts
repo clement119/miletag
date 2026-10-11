@@ -11,9 +11,10 @@ import type {
   RunnerCount,
 } from './catalog';
 import { DEFAULT_LAYER_TOGGLES, type MapLayerToggles, type MapStyleId } from './map-styles';
+import type { PhotoAsset, PhotoCrop } from './photo';
 import type { LngLat, XY } from './route/geometry';
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export type Runner = {
   name: string;
@@ -40,7 +41,17 @@ export type MapCamera = {
 
 export type Background =
   | { type: 'map'; styleId: MapStyleId; camera: MapCamera | null; layers: MapLayerToggles }
-  | { type: 'photo'; photoUri?: string };
+  | {
+      type: 'photo';
+      photo: PhotoAsset | null;
+      crop: PhotoCrop;
+      /** Dark wash over the photo, 0..1. */
+      scrim: number;
+      /** Black-and-white. */
+      mono: boolean;
+      /** The user accepted a low-resolution print at this DPI (or better). */
+      lowResAckDpi: number | null;
+    };
 
 export type DesignDocument = {
   schemaVersion: typeof SCHEMA_VERSION;
@@ -87,7 +98,8 @@ export function createDesignDocument(designId: string, runnerCount: RunnerCount)
     route: {
       points: null,
       geo: null,
-      transform: { ...DEFAULT_ROUTE_TRANSFORM },
+      // Poster Classic's photo is a square, so centre the route in it.
+      transform: { ...DEFAULT_ROUTE_TRANSFORM, ...(designId === 'poster-classic' && { y: 0.5 }) },
       stroke: { width: 2.5, color: '#F5A623' },
       markers: true,
     },

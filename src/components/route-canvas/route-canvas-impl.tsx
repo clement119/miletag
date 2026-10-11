@@ -1,12 +1,24 @@
 /**
- * Live poster canvas with the movable route (PRD §7.4).
- * One-finger drag = move, pinch = scale, twist = rotate, double-tap = reset.
- * Gestures run on the UI thread; the transform is committed back to the
- * design document when a gesture ends.
+ * Live canvas for photo mode (PRD §7.2, §7.4): the user's photo with a movable route on top.
+ * Gestures drive either the route (drag / pinch / twist / double-tap reset) or the
+ * photo crop (drag / pinch), picked by `adjust`. They run on the UI thread and are
+ * committed back to the design document when a gesture ends.
  */
 
-import { Canvas, DashPathEffect, Group, Line, Path, Rect, Skia, vec } from '@shopify/react-native-skia';
-import { useMemo, useState } from 'react';
+import {
+  Canvas,
+  ColorMatrix,
+  DashPathEffect,
+  Group,
+  Image,
+  Line,
+  Path,
+  Rect,
+  Skia,
+  useImage,
+  vec,
+} from '@shopify/react-native-skia';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useDerivedValue, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -14,7 +26,10 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { Colors, Motion } from '@/constants/theme';
 import { DEFAULT_ROUTE_TRANSFORM, type RouteTransform } from '@/domain/design-document';
+import { clampCrop, DEFAULT_PHOTO_CROP, type PhotoCrop } from '@/domain/photo';
 import type { XY } from '@/domain/route/geometry';
+
+export type CanvasPhoto = { uri: string; width: number; height: number; crop: PhotoCrop; scrim: number; mono: boolean };
 
 export type RouteCanvasProps = {
   points: XY[] | null;
@@ -25,11 +40,20 @@ export type RouteCanvasProps = {
   aspectRatio: number;
   /** Optional dashed square (fraction of poster width) showing the 3D-printable area. */
   printableArea?: number | null;
+  photo?: CanvasPhoto | null;
+  onPhotoCropEnd?: (crop: PhotoCrop) => void;
+  /** What gestures move. Falls back to the route when there is no photo. */
+  adjust?: 'route' | 'photo';
 };
 
 const MIN_SCALE = 0.15;
 const MAX_SCALE = 1.6;
 const GRID_LINES = 12;
+
+// Rec. 709 luminance, for the black-and-white option.
+const GREYSCALE = [
+  0.2126, 0.7152, 0.0722, 0, 0, 0.2126, 0.7152, 0.0722, 0, 0, 0.2126, 0.7152, 0.0722, 0, 0, 0, 0, 0, 1, 0,
+];
 
 export default function RouteCanvas({
   points,
@@ -38,9 +62,43 @@ export default function RouteCanvas({
   strokeColor,
   aspectRatio,
   printableArea,
+  photo,
+  onPhotoCropEnd,
+  adjust = 'route',
 }: RouteCanvasProps) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const { width, height } = size;
+  const image = useImage(photo?.uri);
+  const movingPhoto = adjust === 'photo' && !!photo && !!image;
+  const photoDims = { width: photo?.width ?? 1, height: photo?.height ?? 1 };
+  const crop = photo?.crop ?? DEFAULT_PHOTO_CROP;
+
+  const px = useSharedValue(crop.x);
+  const py = useSharedValue(crop.y);
+  const pscale = useSharedValue(crop.scale);
+  const pstart = useSharedValue({ ...crop });
+
+  // A new photo (or a reset) arrives as props; sync the gesture state to it.
+  useEffect(() => {
+    px.set(crop.x);
+    py.set(crop.y);
+    pscale.set(crop.scale);
+  }, [crop.x, crop.y, crop.scale, px, py, pscale]);
+
+  // Drawn photo rect: cover the canvas, then zoom and offset.
+  const photoRect = useDerivedValue(() => {
+    const photoAspect = photoDims.width / photoDims.height;
+    const canvasAspect = width / Math.max(1, height);
+    const coverW = photoAspect >= canvasAspect ? height * photoAspect : width;
+    const coverH = photoAspect >= canvasAspect ? height : width / photoAspect;
+    const w = coverW * pscale.get();
+    const h = coverH * pscale.get();
+    return { x: width / 2 + px.get() * width - w / 2, y: height / 2 + py.get() * height - h / 2, w, h };
+  });
+  const photoX = useDerivedValue(() => photoRect.get().x);
+  const photoY = useDerivedValue(() => photoRect.get().y);
+  const photoW = useDerivedValue(() => photoRect.get().w);
+  const photoH = useDerivedValue(() => photoRect.get().h);
 
   const x = useSharedValue(transform.x);
   const y = useSharedValue(transform.y);
@@ -69,17 +127,26 @@ export default function RouteCanvas({
 
   const commit = () => {
     'worklet';
-    scheduleOnRN(onTransformEnd, {
-      x: x.get(),
-      y: y.get(),
-      scale: scale.get(),
-      rotation: rotation.get(),
-    });
+    scheduleOnRN(onTransformEnd, { x: x.get(), y: y.get(), scale: scale.get(), rotation: rotation.get() });
   };
 
   const begin = () => {
     'worklet';
     start.set({ x: x.get(), y: y.get(), scale: scale.get(), rotation: rotation.get() });
+    pstart.set({ x: px.get(), y: py.get(), scale: pscale.get() });
+  };
+
+  const setCrop = (next: PhotoCrop) => {
+    'worklet';
+    const c = clampCrop(next, photoDims, width / Math.max(1, height));
+    px.set(c.x);
+    py.set(c.y);
+    pscale.set(c.scale);
+  };
+
+  const commitPhoto = () => {
+    'worklet';
+    if (onPhotoCropEnd) scheduleOnRN(onPhotoCropEnd, { x: px.get(), y: py.get(), scale: pscale.get() });
   };
 
   const pan = Gesture.Pan()
@@ -87,28 +154,49 @@ export default function RouteCanvas({
     .onStart(begin)
     .onUpdate((e) => {
       if (width === 0) return;
+      if (movingPhoto) {
+        const s0 = pstart.get();
+        setCrop({ x: s0.x + e.translationX / width, y: s0.y + e.translationY / height, scale: s0.scale });
+        return;
+      }
       x.set(start.get().x + e.translationX / width);
       y.set(start.get().y + e.translationY / height);
     })
-    .onEnd(commit);
+    .onEnd(() => (movingPhoto ? commitPhoto() : commit()));
 
   const pinch = Gesture.Pinch()
     .onStart(begin)
     .onUpdate((e) => {
+      if (movingPhoto) {
+        const s0 = pstart.get();
+        setCrop({ ...s0, x: px.get(), y: py.get(), scale: s0.scale * e.scale });
+        return;
+      }
       scale.set(Math.min(MAX_SCALE, Math.max(MIN_SCALE, start.get().scale * e.scale)));
     })
-    .onEnd(commit);
+    .onEnd(() => (movingPhoto ? commitPhoto() : commit()));
 
   const rotate = Gesture.Rotation()
     .onStart(begin)
     .onUpdate((e) => {
+      // Photos don't rotate; a slight twist while pinching shouldn't move the route.
+      if (movingPhoto) return;
       rotation.set(start.get().rotation + e.rotation);
     })
-    .onEnd(commit);
+    .onEnd(() => {
+      if (!movingPhoto) commit();
+    });
 
   const reset = Gesture.Tap()
     .numberOfTaps(2)
     .onEnd(() => {
+      if (movingPhoto) {
+        px.set(withSpring(0, Motion.spring));
+        py.set(withSpring(0, Motion.spring));
+        pscale.set(withSpring(1, Motion.spring));
+        if (onPhotoCropEnd) scheduleOnRN(onPhotoCropEnd, { ...DEFAULT_PHOTO_CROP });
+        return;
+      }
       x.set(withSpring(DEFAULT_ROUTE_TRANSFORM.x, Motion.spring));
       y.set(withSpring(DEFAULT_ROUTE_TRANSFORM.y, Motion.spring));
       scale.set(withSpring(DEFAULT_ROUTE_TRANSFORM.scale, Motion.spring));
@@ -131,17 +219,28 @@ export default function RouteCanvas({
         <GestureDetector gesture={gesture}>
           <Canvas style={{ width, height }}>
             <Rect x={0} y={0} width={width} height={height} color="#2A2A2D" />
-            {/* Placeholder street grid until MapLibre map styles are wired in. */}
-            {Array.from({ length: GRID_LINES }, (_, i) => {
-              const gx = ((i + 1) / (GRID_LINES + 1)) * width;
-              const gy = ((i + 1) / (GRID_LINES + 1)) * height;
-              return (
-                <Group key={i}>
-                  <Line p1={vec(gx, 0)} p2={vec(gx, height)} color="#38383C" strokeWidth={1} />
-                  <Line p1={vec(0, gy)} p2={vec(width, gy)} color="#38383C" strokeWidth={1} />
-                </Group>
-              );
-            })}
+            {image ? (
+              <Group>
+                <Image image={image} x={photoX} y={photoY} width={photoW} height={photoH} fit="fill">
+                  {photo?.mono && <ColorMatrix matrix={GREYSCALE} />}
+                </Image>
+                {!!photo?.scrim && (
+                  <Rect x={0} y={0} width={width} height={height} color={`rgba(0,0,0,${photo.scrim})`} />
+                )}
+              </Group>
+            ) : (
+              // Placeholder grid until a photo is chosen.
+              Array.from({ length: GRID_LINES }, (_, i) => {
+                const gx = ((i + 1) / (GRID_LINES + 1)) * width;
+                const gy = ((i + 1) / (GRID_LINES + 1)) * height;
+                return (
+                  <Group key={i}>
+                    <Line p1={vec(gx, 0)} p2={vec(gx, height)} color="#38383C" strokeWidth={1} />
+                    <Line p1={vec(0, gy)} p2={vec(width, gy)} color="#38383C" strokeWidth={1} />
+                  </Group>
+                );
+              })
+            )}
             {area > 0 && (
               <Rect
                 x={(width - area) / 2}
@@ -171,6 +270,4 @@ export default function RouteCanvas({
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: { width: '100%', borderRadius: 4, overflow: 'hidden' },
-});
+const styles = StyleSheet.create({ wrapper: { width: '100%', borderRadius: 4, overflow: 'hidden' } });

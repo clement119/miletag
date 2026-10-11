@@ -1,6 +1,7 @@
 import { Redirect } from 'expo-router';
 import { StyleSheet, TextInput, View } from 'react-native';
 
+import { getPhotoQuality, PhotoQualityNotice } from '@/components/photo-quality';
 import { AppText, Button, Card, Chip, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import {
@@ -54,6 +55,12 @@ export default function FormatPicker() {
             <Chip key={s} label={s} selected={s === size} onPress={() => setOrder({ size: s })} />
           ))}
         </View>
+        <PhotoQualityNotice
+          doc={doc}
+          onAcknowledge={(lowResAckDpi) =>
+            update((d) => (d.background.type === 'photo' ? { ...d, background: { ...d.background, lowResAckDpi } } : d))
+          }
+        />
       </Card>
 
       <Card>
@@ -161,7 +168,7 @@ export default function FormatPicker() {
 
       <Button
         label="Continue to checkout"
-        disabled={fit !== null && !fit.ok}
+        disabled={(fit !== null && !fit.ok) || !!getPhotoQuality(doc)?.blocked}
         onPress={() => {
           // Checkout (address + MY payment methods) is the next build step.
         }}
