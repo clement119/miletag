@@ -1,11 +1,12 @@
-# Miletag — Product Requirements Document (v0.3)
+# Miletag — Product Requirements Document (v0.4)
 
-> **Status:** Draft v0.3 · **Owner:** Clement · **Date:** 11 Oct 2026
+> **Status:** Draft v0.4 · **Owner:** Clement · **Date:** 11 Oct 2026
 > **Open decisions are marked `⚑ DECISION`.** Each has a recommended default so the build is not blocked.
 
 ### Changelog
 | Version | Change |
 |---|---|
+| v0.4 | **Locked:** 3D = **flat raised line** only; filament colours = white, black, signal orange, neon yellow, silver, gold; 3D printer = **Bambu Lab P2S** (route area capped to the build plate); **medal designs support 1–6 runners, but each frame still has one medal slot**, so crews each buy their own copy via a **Crew Copy Link**; launch volume = **a few orders per week**, so the Production Console is cut to a lightweight version (capacity throttling, batching and inventory moved to later). |
 | v0.3 | **Locked:** 3D route = raised line 3D-printed from the user's GPX, paid add-on; free export = social sizes only; **Miletag prints in-house** (fine-art prints + 3D routes + framing/assembly); runner count (1–6) is a user selection, **supported only by specific designs**; **one medal, one slot** per medal design; **everything ships in v1**. Product range simplified to 3 frame formats. New P0: **Production Console** (internal ops tool). |
 | v0.2 | Malaysia-first; free watermarked export; no subscription; physical-only revenue; medal SKUs; web + iOS + Android. |
 | v0.1 | First draft. |
@@ -24,7 +25,8 @@
   - social-size export with a small "made with miletag" mark
 - **Paid (physical only, made in-house):**
   - fine-art print (unframed or framed)
-  - **Deep Frame** with the optional **3D raised route** and/or **one medal slot**
+  - **Deep Frame** with the optional **3D raised route** (flat, 6 colours) and/or **one medal slot**
+  - crews share one design; each member orders their own copy with their own medal
   - delivered to your door
 - **Launch market:** 🇲🇾 Malaysia. Global later.
 - **Platforms:** iOS + Android + Web (one Expo codebase).
@@ -73,7 +75,7 @@
 | AOV | ≥ RM 180 |
 | 3D route attach rate (on Deep Frame orders) | ≥ 40% |
 | Medal slot attach rate (on Deep Frame orders) | ≥ 30% |
-| Order-to-dispatch time (P90) | ≤ 3 working days |
+| Order-to-dispatch time (P90) | ≤ 5 working days (solo founder, low volume) |
 | Reprint / complaint rate | ≤ 3% |
 | Contribution margin per order | ≥ 50% (no POD middleman) |
 
@@ -114,7 +116,8 @@ Everything below ships in v1. The P0 list is long, which is why the build estima
 | F13 | **Medal slot** (medal designs + Deep Frame only, 1 medal) |
 | F14 | Malaysian race preset library (course line + date) |
 | F15 | Referral codes on exports |
-| F16 | **Production Console** (internal): order queue, file downloads, status, labels |
+| F16 | **Production Console (lite)** (internal): order list, file downloads, status updates, courier label |
+| F18 | **Crew Copy Link**: share a crew design so each runner orders their own copy ("this is me" highlight) |
 | F17 | Bahasa Malaysia UI ⚑ (default: P1, English-only launch) |
 
 ---
@@ -140,6 +143,19 @@ Onboarding (3 cards)
 - The runner count is **chosen first**, and the gallery shows **only designs that support that count**. Users can change the count later in the editor; if the current design doesn't support the new count, they're prompted to switch design.
 - **Same race (default):** one shared route line + one stat block per runner (name, time, pace, bib).
 - **Different races** ⚑ (default: **not in v1**). One route per design keeps the 3D route to a single line and keeps layouts clean.
+
+### 5.2a Crew Copy Link (medal + crew designs)
+Each frame holds **one medal**, so a crew of 4 with 4 medals needs 4 frames. The flow:
+```
+Crew designer finishes a 2–6 runner design → "Share with crew" → link (WhatsApp / IG)
+ → each crew member opens the link (app or web, no edit rights to others' data)
+ → taps "This is me" → their name/stat block gets a subtle highlight on THEIR copy ⚑
+ → enters their medal size (fit check) → picks format / add-ons → pays for their own copy
+```
+- **Shared:** the design (route, background, layout, all runner names and times) is shared, and **locked once the first copy is paid** so every copy matches. The creator can still fix typos until each copy's production lock.
+- **Per copy:** highlighted runner, frame colour, 3D colour, medal on/off, address, payment.
+- **Crew incentive:** e.g. 10% off every copy once 3+ copies are ordered from the same link ⚑.
+- **Why it matters:** every crew design brings 2–6 orders from one creation, plus every member sees the brand. It's the highest-leverage growth loop in v1.
 
 ### 5.3 No Strava (GPX upload)
 Swipeable tutorial cards for Strava web, Garmin Connect, COROS, Polar, Suunto, Apple Health (via an export app) and Huawei Health, plus "Email me these steps". Fallback: **Malaysian race preset**, where the user picks the race and we supply the course line.
@@ -227,10 +243,11 @@ formats:         ["print","framed","deep"]
 | **Mono Tech** | B&W photo, neon route, monospace stats (image 5) | 1 | — | ✅ |
 | **Duo** | Two names + times in columns (image 2) | 2 | — | ✅ |
 | **Crew Grid** | Shared route top, stat grid below | 3–6 | — | ✅ |
-| **Medal Classic** | Print upper ~65%, medal slot lower ~35% (portrait) | 1 | ✅ | ✅ |
+| **Medal Classic** | Print upper ~65%, medal slot lower ~35% (portrait) | 1–2 | ✅ | ✅ |
 | **Medal Side** | Landscape: route/photo left, medal slot right | 1 | ✅ | ✅ |
+| **Medal Crew** | Shared route top, crew stat grid middle, single medal slot bottom-centre | 2–6 | ✅ | ✅ |
 
-⚑ **DECISION:** Should a medal design also support 2+ runners? The default is **no**: one medal = one runner's story. A couple with one medal is an edge case.
+**Locked:** medal designs can show 1–6 runners, but every frame has **exactly one medal slot**. Crews buy one copy each via the Crew Copy Link (§5.2a).
 
 ### 7.2 Photo handling
 Live DPI gate (green ≥ 200 / amber 150–199 / red < 150, warn + acknowledge), adjustable scrim, B&W, contrast.
@@ -259,14 +276,12 @@ See §6.2.
 **What the customer gets:** the route line from **their own GPX**, 3D-printed as a raised relief and mounted on the print **exactly over the printed route position** they chose in the editor, inside a Deep Frame.
 
 **Customer-facing options (v1)**
-- **Colour:** 4–6 filament colours matched to the design palettes (e.g. white, black, signal orange, neon yellow, silver, gold) ⚑.
+- **Colour (locked):** white, black, signal orange, neon yellow, silver, gold. Silver and gold use silk PLA for a metallic sheen. Each relief is printed in one colour.
 - **Printed line underneath:**
   - on (the relief sits on top of the printed line), or
   - off (the relief stands alone on the background).
   Default: on, which hides small alignment tolerance.
-- **Height profile** ⚑:
-  - (a) **flat raised line**, uniform height (default, v1)
-  - (b) **elevation profile**, where the height follows elevation (v1.1; nice upsell, but harder to mount)
+- **Height profile (locked):** **flat raised line**, uniform height. The elevation profile is out of scope.
 
 **Editor behaviour**
 - Opting in shows a **3D preview toggle**: Skia-rendered bevel/shadow on the route, plus a slight parallax on device tilt.
@@ -286,16 +301,17 @@ See §6.2.
 6. Export **3MF/STL** + a **1:1 alignment template PDF**.
 - Validation: manifold check, minimum feature size, fits bed. Failures route to manual review in the Production Console.
 
-**Production constraints (in-house)** ⚑ *depends on your printer choice*
-- **Build plate:** a typical consumer printer bed is about 256×256 mm. A3 is 297×420 mm, so a large route may exceed it. Options:
-  - (a) limit the 3D route area to ≤ 250×250 mm (default for v1)
-  - (b) buy a large-format printer (e.g. 350×350 mm+)
-  - (c) split into keyed segments (v1.1)
-- **Print time:** about 30–120 min per relief at these sizes, so a **printer farm** is needed for race-week peaks. Capacity model in §7.10.
-- **Mounting:** an alignment jig + registration marks printed on the paper (hidden under the relief) + acid-free adhesive. Target ≤ 10 min of assembly per unit.
+**Production constraints: Bambu Lab P2S (locked)**
+- **Build plate:** about 256×256 mm (verify against the final spec sheet). A3 is 297×420 mm, so the **3D route's bounding box is capped at 240×240 mm** (8 mm margin each side for bed adhesion and the brim). The editor shows this as a dashed "3D printable area" box while the add-on is on; the route can be rotated to fit diagonally.
+  - On **A3**, a route at a typical poster scale fits comfortably.
+  - On **A2**, the cap means the 3D route is visually smaller relative to the poster. Show this honestly in the preview. Splitting into keyed segments is a later feature.
+- **Print settings (starting profile, tune on test prints):** PLA / silk PLA, 0.4 mm nozzle, line width 3.0 mm, height 2.0 mm, flat on the textured plate. One relief per plate, or several small ones by colour.
+- **Print time:** roughly 20–60 min per relief at this size. At a few orders a week, one P2S is plenty.
+- **Fragility:** long thin reliefs can warp or snap. Mitigations: minimum 3 mm width, rounded joins, merge near-parallel out-and-back segments (closer than 1.5 mm) into one wider stroke, and ship mounted inside the Deep Frame only.
+- **Mounting:** an alignment template + registration pins + acid-free adhesive. Target ≤ 10 min of assembly per unit.
 
 ### 7.8 Medal slot (locked: one medal, one slot)
-- **Available on:** medal designs (Medal Classic, Medal Side) **+ Deep Frame**.
+- **Available on:** medal designs (Medal Classic, Medal Side, Medal Crew) **+ Deep Frame**. One slot, one medal per frame, whatever the runner count.
 - **Customer inserts their own medal.** We never take custody of medals. The Deep Frame has an **openable back** (turn buttons / hinged), a **pin/hook** at the slot position, and a **ribbon channel**.
 - **Editor:**
   1. The medal zone is shown as a dashed placeholder. Text, route and 3D area are excluded from it.
@@ -313,30 +329,21 @@ See §6.2.
   - **Customer sees:** Paid → Editable (2 h) → In production → Shipped → Delivered.
   - **Internal states:** Locked → Files ready → Printing → 3D printing → Assembly → QC → Packed → Shipped.
 
-### 7.10 Production Console (new, internal, P0)
+### 7.10 Production Console lite (internal, P0)
 
-Since Miletag *is* the print partner, the app needs a back-office. This is a web-only admin app in the same repo, gated by role.
+Launch volume is **a few orders per week**, so v1 ships a deliberately thin back-office. It's a web-only admin route in the same repo, behind a staff login.
 
-| Capability | Detail |
+| Capability (v1) | Detail |
 |---|---|
-| **Order queue** | Kanban by state (Files ready → Printing → 3D → Assembly → QC → Packed → Shipped); filters by format, size, deadline, East/West MY |
-| **Job files** | Per order, download the **print PDF** (300 DPI, bleed, crop marks, medal backing panel), the **3D model (3MF/STL)**, the **alignment template PDF**, and an **assembly sheet** (thumbnail, frame colour, filament colour, medal slot yes/no, ribbon option) |
-| **Batching** | Group print PDFs by paper size for sheet efficiency; group 3D jobs by filament colour to reduce colour swaps; export a batch to the printer / slicer |
-| **QC step** | Checklist + photo upload of the finished piece (photo optionally sent to the customer: "Here's your print before it ships") |
-| **Shipping** | Generate a courier label via the aggregator API; tracking number pushed to the customer automatically |
-| **Capacity & SLA** | Daily capacity settings (prints/day, 3D units/day, assembly units/day). When the queue exceeds capacity, **checkout shows a longer delivery estimate automatically** (protects reviews at race peaks) |
-| **Inventory** | Frames by size/colour, glass, paper, filament by colour, medal hardware, with low-stock alerts |
-| **Exceptions** | Failed 3D validation, low-DPI acknowledged orders, address issues, reprints |
+| **Order list** | Table of orders with status, format, size, add-ons, East/West MY, order date |
+| **Job files** | Per order, download the **print PDF** (300 DPI, bleed, crop marks, medal backing panel), the **3D model (3MF, ready for Bambu Studio)**, the **alignment template PDF**, and a one-page **assembly sheet** (thumbnail, frame colour, filament colour, medal yes/no, ribbon option, crew copy highlight) |
+| **Status updates** | Buttons to move an order through Printing → 3D → Assembly → Shipped; each change pushes a notification to the customer |
+| **QC photo** | Optional photo of the finished piece, sent to the customer ("here's yours before it ships") |
+| **Shipping** | Enter a tracking number manually, or create a label via the courier aggregator; the tracking link goes to the customer |
+| **Lead time setting** | One manual number ("dispatch in N working days") shown at checkout |
+| **Exceptions** | Flags for failed 3D validation, acknowledged low-DPI photos, address problems |
 
-**Capacity model (fill with real numbers) ⚑**
-
-| Station | Unit time (est.) | Units/day per station (8 h) |
-|---|---|---|
-| Fine-art print (large-format pigment printer) | ~5–10 min | ~50–90 |
-| 3D route (per printer) | ~30–120 min | ~4–16 |
-| Assembly + mounting + QC | ~15–25 min | ~20–30 |
-
-Bottleneck: **3D printing.** Size the printer farm on the race-week peak, not on the average.
+**Deferred until volume demands it:** capacity-aware delivery estimates, kanban, batching, inventory tracking and multi-printer queueing.
 
 ---
 
@@ -346,14 +353,14 @@ Bottleneck: **3D printing.** Size the printer farm on the race-week peak, not on
 | Layer | Choice |
 |---|---|
 | App | **Expo + Expo Router** (TypeScript): iOS + Android + Web |
-| Production Console | Same repo, web-only route group (`/(admin)`), role-based access via Supabase |
+| Production Console lite | Same repo, web-only route group (`/(admin)`), staff role via Supabase |
 | Rendering | **@shopify/react-native-skia** (native, web via CanvasKit, Node) |
 | Gestures / anim | Gesture Handler + Reanimated + Moti |
 | Styling | NativeWind |
 | Maps | MapLibre + self-hosted OSM vector tiles, 5 style JSONs |
 | Backend | Supabase (Postgres, Auth, Storage, Edge Functions), region near MY (Singapore) |
 | Render worker | Node + Skia + headless MapLibre → print PDF |
-| **3D worker** | Geometry pipeline (e.g. Manifold / JSCAD in Node, or Python trimesh/shapely) → 3MF/STL + alignment PDF |
+| **3D worker** | Geometry pipeline (e.g. Manifold / JSCAD in Node, or Python trimesh/shapely) → 3MF (Bambu Studio-ready) + alignment PDF |
 | Payments | Stripe and/or local gateway |
 | Shipping | Courier aggregator API (labels + tracking) |
 | Analytics | PostHog |
@@ -364,8 +371,9 @@ Bottleneck: **3D printing.** Size the printer farm on the race-week peak, not on
   "schemaVersion": 3,
   "designId": "medal-classic",
   "runnerCount": 1,
+  "crew": { "shareId": null, "highlightRunner": 0 },
   "order": { "format": "deep", "size": "A3", "frame": "oak",
-             "route3d": { "enabled": true, "color": "gold", "profile": "flat", "printedLineBelow": true },
+             "route3d": { "enabled": true, "color": "gold", "printedLineBelow": true },
              "medal":   { "enabled": true, "diameterMm": 85, "ribbon": "visible", "previewAssetId": "m_1" } },
   "background": { "type": "map", "styleId": "graphite", "center": [101.69, 3.14], "zoom": 12.3, "bearing": 0 },
   "runners": [{ "name": "Clement", "bib": "21095", "time": "03:58:12", "distanceKm": 42.195 }],
@@ -391,7 +399,7 @@ One route per design (same-race rule). The same `route.transform` drives the 2D 
 Self-hosted OSM (ODbL) + MapLibre. Attribution goes on the poster edge or back label. No Mapbox/Google static maps for print without a licence.
 
 ### 8.5 Data model
-`users`, `strava_connections`, `designs` (catalogue: supportsRunners/Medal/3D), `projects` (user design docs, JSONB), `assets`, `orders`, `order_items`, `production_jobs` (state, station, operator, timestamps), `job_files` (pdf/3mf/alignment/assembly), `qc_records`, `inventory_items`, `capacity_settings`, `shipments`, `exports`, `referral_codes`, `race_presets`, `staff_roles`.
+`users`, `strava_connections`, `designs` (catalogue: supportsRunners/Medal/3D), `projects` (user design docs, JSONB), `assets`, `orders`, `order_items`, `crew_links` (shared design, lock state), `production_jobs` (state, timestamps), `job_files` (pdf/3mf/alignment/assembly), `qc_photos`, `shipments`, `settings` (lead time), `exports`, `referral_codes`, `race_presets`, `staff_roles`.
 
 ---
 
@@ -450,10 +458,12 @@ SmoothUI, Amicro and Bencho are web React + Tailwind + Motion libraries.
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| **In-house capacity at race peaks** (3D is the bottleneck) | Late deliveries, bad reviews | Capacity-aware delivery estimates; printer farm sized on peak; pre-race "order early" campaigns |
-| **Capex + ops load on the founder** | Cash + time | Start with minimum viable kit; track unit time per station; hire part-time assembly before peak |
+| **Race-week spike beyond solo capacity** | Late deliveries | Manual lead-time setting at checkout; pause orders toggle; add a second P2S if demand appears (low capex) |
+| **Ops load on the founder** | Time | Lite console, few orders/week; time each step on the first 20 orders to price labour correctly |
 | **3D relief misaligned with printed line** | Returns | Registration pins + jig + printed line underneath by default |
-| **3D route exceeds printer bed** | Can't fulfil | 250×250 mm guard in the editor (v1); split/large printer later |
+| **3D route exceeds P2S bed** | Can't fulfil | 240×240 mm guard in the editor; rotate-to-fit; split later |
+| **Thin relief warps / snaps** | Reprints | ≥ 3 mm width, merged out-and-backs, test-print each design's typical route |
+| **Crew copies drift (one member edits)** | Mismatched frames | Shared design locks after the first paid copy; only typo fixes by the creator |
 | **Relief detaching in transit** | Damage | Adhesive spec + transit drop tests; Deep Frame glass retains it |
 | **Medal fit complaints** | Returns | Fit check; clear max size; customer inserts medal |
 | **Free export cannibalisation** | Revenue | Social sizes only; print-res stays server-side |
@@ -475,21 +485,20 @@ SmoothUI, Amicro and Bencho are web React + Tailwind + Motion libraries.
 
 | Phase | Scope | Indicative duration |
 |---|---|---|
-| **0. Validate + set up the studio** | Buy and test kit (pigment large-format printer, 3D printers, jig, frames); test-produce every format × size; measure real unit times + costs; concierge-sell 20–30 orders at one Malaysian race | 4–6 wks (parallel with build) |
-| **1. v1 build** | Everything in §4: customer app (iOS/Android/Web), all 8 designs, runner selector, photo + 5 maps, GPX + Strava, 3D route pipeline, medal slot, free export, MY checkout + shipping, **Production Console** | **16–20 wks** |
+| **0. Validate + set up the studio** | Set up the P2S + fine-art printer + Deep Frame supplier; dial in the 3D print profile; test-produce every format × size; measure real unit times + costs; concierge-sell 10–20 orders at one Malaysian race | 4–6 wks (parallel with build) |
+| **1. v1 build** | Everything in §4: customer app (iOS/Android/Web), all 8 designs, runner selector, photo + 5 maps, GPX + Strava, 3D route pipeline, medal slot, free export, MY checkout + shipping, **Production Console lite**, Crew Copy Link | **14–18 wks** |
 | **1b. Soft launch** | Invite-only (run clubs) for 2–3 wks to stress-test production + 3D alignment before opening to the public | 2–3 wks |
-| **2. Next** | Elevation-profile 3D, split 3D for large routes, different-race multi-runner, BM localisation, AR preview | — |
+| **2. Next** | Split 3D for large routes, different-race multi-runner, capacity-aware console, BM localisation, AR preview | — |
 | **3. Expand** | Singapore → SEA → global (likely regional print partners, since shipping Deep Frames internationally from MY is costly); race organiser B2B | — |
 
-> **Challenge:** "everything in v1" adds about 4–6 weeks vs v0.2, mostly for the 3D pipeline + Production Console. That's acceptable, but **don't skip the soft launch**. In-house production is where the first 100 orders will break.
+> **Note:** cutting the console to a lite version saves about 2 weeks vs v0.3. The 3D pipeline + Crew Copy Link remain the biggest build items. **Don't skip the soft launch.** Use it to test 3D alignment and Deep Frame shipping.
 
 ---
 
 ## 15. Open questions (remaining)
 
-1. **3D height profile in v1:** flat raised line only (default), or elevation profile too?
-2. **3D filament colours:** which 4–6? *(Default: white, black, signal orange, neon yellow, silver, gold.)*
-3. **3D printer choice:** standard bed (route area ≤ 250×250 mm) or large-format? This sets the editor guard.
-4. **Medal designs + multiple runners:** allowed or not? *(Default: medal designs are single-runner.)*
+1. **Crew highlight:** on each member's copy, should their own name be subtly highlighted (default), or should all copies be identical?
+2. **Crew discount:** offer 10% off when 3+ copies are ordered from one link? *(Default: yes.)*
+3. **Fine-art paper printer:** which printer for the 2D prints? An A2-capable pigment inkjet is needed for A2. If not yet bought, A3-only at launch is a valid way to cut capex.
+4. **Deep Frame supplier:** buy ready-made deep frames (fastest) or have a local framer make them (custom depth/colour)?
 5. **Bahasa Malaysia UI at launch or shortly after?** *(Default: shortly after.)*
-6. **Studio capacity:** how many orders/day do you want to support at launch? This sizes the printer farm and capex.
