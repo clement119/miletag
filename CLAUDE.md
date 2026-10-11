@@ -64,6 +64,7 @@ Miletag turns a race into wall art. Free: live editor and preview, drag the GPX 
 - `eas init` writes the *resolved* config into app.json; check the diff (it added RECORD_AUDIO from expo-image-picker, now disabled via `microphonePermission: false`).
 - Prettier: no config in repo. Match style with `--single-quote --print-width 120 --bracket-same-line --trailing-comma all --object-wrap collapse`, and only on files you changed.
 - Static web export pre-renders pages in Node: anything that loads CanvasKit must skip rendering when `typeof window === 'undefined'` (see `route-canvas/index.web.tsx`).
+- `eas deploy --prod` can create the deployment but leave production on the old one (seen once). After deploying, check the live entry bundle; if stale, run `npx eas-cli@latest deploy:alias --prod --id <deployment id> --non-interactive`.
 - Never put the owner's email (or any personal data) in requests to outside services, e.g. a User-Agent header.
 - Playwright: launch with `executablePath: '/opt/pw-browsers/chromium'`; never `playwright install`.
 
