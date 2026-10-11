@@ -124,7 +124,6 @@ export function posterData(doc: DesignDocument) {
     // Optional: shown only when filled in, never as a placeholder.
     city: city.trim(),
     country: country.trim(),
-    location: [city.trim(), country.trim()].filter(Boolean).join(', '),
     distanceKm,
     runners: doc.runners.map((r, i) => ({
       name: r.name.trim() || (doc.runners.length > 1 ? `Runner ${i + 1}` : 'Your name'),

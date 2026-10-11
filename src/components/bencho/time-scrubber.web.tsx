@@ -136,8 +136,8 @@ export type TimeScrubberProps = {
   value?: number;
   onChange?: (v: number) => void;
   ariaLabel?: string;
-  /** 'glass' for use over photos: see-through, blurred, light ink. */
-  tone?: 'solid' | 'glass';
+  /** 'glass' for use over photos: see-through, light ink. 'paper': see-through, dark ink. */
+  tone?: 'solid' | 'glass' | 'paper';
 };
 
 export function TimeScrubber({

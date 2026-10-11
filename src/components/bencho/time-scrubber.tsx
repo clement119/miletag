@@ -27,7 +27,10 @@ export function TimeScrubber({
   value,
   onChange,
   ariaLabel = 'Time',
+  tone,
 }: TimeScrubberProps) {
+  // Dark ink on paper designs, light ink everywhere else.
+  const ink = tone === 'paper' ? '#111' : Colors.text;
   const s = Number(step) || 15;
   const [pos, setPos] = useState(value ?? start);
   const bounded = min !== undefined && max !== undefined;
@@ -50,14 +53,14 @@ export function TimeScrubber({
   return (
     <View style={styles.root} accessibilityRole="adjustable" accessibilityLabel={ariaLabel}>
       <Pressable accessibilityLabel="Less" hitSlop={8} onPress={() => move(-s)} style={styles.step}>
-        <Ionicons name="remove" size={22} color={Colors.text} />
+        <Ionicons name="remove" size={22} color={ink} />
       </Pressable>
-      <Text style={styles.value}>
+      <Text style={[styles.value, { color: ink }]}>
         {readout.time}
         {readout.mer ? ` ${readout.mer}` : ''}
       </Text>
       <Pressable accessibilityLabel="More" hitSlop={8} onPress={() => move(s)} style={styles.step}>
-        <Ionicons name="add" size={22} color={Colors.text} />
+        <Ionicons name="add" size={22} color={ink} />
       </Pressable>
     </View>
   );

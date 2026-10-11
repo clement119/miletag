@@ -7,20 +7,20 @@
  */
 
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { createContext, useContext, useEffect, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type FlexAlignType } from 'react-native';
+import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { Pressable, StyleSheet, Text, View, type FlexAlignType, type StyleProp, type TextStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
 /**
- * A text field on the poster. `location` is "City, Country" in one line. Time, pace
- * and distance are edited with a dial instead of the keyboard.
+ * A text field on the poster. Every field is its own piece of text, even where a design
+ * runs several together on one line (see `InlineFields`). Time, pace and distance are
+ * edited with a dial instead of the keyboard.
  */
 export type TextField =
   | 'title'
   | 'date'
   | 'city'
   | 'country'
-  | 'location'
   | 'distance'
   | `name:${number}`
   | `bib:${number}`
@@ -33,6 +33,8 @@ type EditableState = {
   /** Nothing typed yet in the active field: hide its placeholder, show just the caret. */
   activeEmpty: boolean;
   onEdit: (field: TextField) => void;
+  /** Where the tapped field sits on screen, so the editor can zoom to it. */
+  onLocate?: (rect: { x: number; y: number; width: number; height: number }) => void;
 };
 
 export const EditableContext = createContext<EditableState>({
@@ -62,14 +64,22 @@ export function Editable({
   badge?: boolean;
   children: ReactNode;
 }) {
-  const { editing, active, activeEmpty, onEdit } = useContext(EditableContext);
+  const { editing, active, activeEmpty, onEdit, onLocate } = useContext(EditableContext);
   const isActive = editing && active === field;
+  const ref = useRef<View>(null);
+  // Editing starts synchronously in the tap (mobile browsers only open the keyboard then);
+  // the position follows, for the zoom.
+  const start = () => {
+    onEdit(field);
+    ref.current?.measureInWindow((x, y, width, height) => onLocate?.({ x, y, width, height }));
+  };
   return (
     <Pressable
+      ref={ref}
       // The text itself is a tap target in edit mode, not just the badge.
       disabled={!editing}
       accessibilityRole={editing ? 'button' : undefined}
-      onPress={() => onEdit(field)}
+      onPress={start}
       style={[styles.wrap, { alignSelf: align }]}>
       {/* Kept in the layout (so nothing shifts) but hidden while the field is blank. */}
       <View style={isActive && activeEmpty ? styles.hidden : undefined}>{children}</View>
@@ -80,12 +90,48 @@ export function Editable({
           accessibilityRole="button"
           accessibilityLabel={`Edit ${field.split(':')[0]}`}
           hitSlop={10}
-          onPress={() => onEdit(field)}
+          onPress={start}
           style={[styles.badge, active === field && styles.badgeActive]}>
           <Ionicons name="pencil" size={10} color={active === field ? '#fff' : '#111'} />
         </Pressable>
       )}
     </Pressable>
+  );
+}
+
+/** A piece of a one-line run of text: fixed words, or a field the user edits on its own. */
+export type InlinePart = string | { text: string; field: TextField };
+
+/**
+ * One line of text made of separate fields, e.g. "CITY, COUNTRY" or "PARTICIPANT: NAME |
+ * BIB: 123". It reads as one line, but each field is tapped and edited on its own.
+ */
+export function InlineFields({
+  parts,
+  style,
+  align = 'flex-start',
+}: {
+  parts: InlinePart[];
+  style: StyleProp<TextStyle>;
+  align?: FlexAlignType;
+}) {
+  return (
+    <View style={[styles.inline, { alignSelf: align }]}>
+      {parts.map((part, i) =>
+        typeof part === 'string' ? (
+          // Non-breaking spaces: a plain space at the end of a piece would be dropped.
+          <Text key={i} numberOfLines={1} style={style}>
+            {part.replace(/ /g, '\u00A0')}
+          </Text>
+        ) : (
+          <Editable key={i} field={part.field}>
+            <Text numberOfLines={1} style={style}>
+              {part.text}
+            </Text>
+          </Editable>
+        ),
+      )}
+    </View>
   );
 }
 
@@ -102,6 +148,7 @@ function Caret({ align }: { align: FlexAlignType }) {
 
 const styles = StyleSheet.create({
   wrap: { maxWidth: '100%' },
+  inline: { flexDirection: 'row', alignItems: 'center', maxWidth: '100%', pointerEvents: 'box-none' },
   hidden: { opacity: 0 },
   caret: { position: 'absolute', top: '12%', bottom: '12%', width: 2, borderRadius: 1, backgroundColor: '#F5A623' },
   outline: {

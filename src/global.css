@@ -161,6 +161,16 @@
 
 .tms[data-tone="glass"] .tms-mark { background: var(--signal); }
 
+/* Miletag: over paper designs (Poster Classic): see-through, dark ink. */
+.tms[data-tone="paper"] {
+  --fill-slab: transparent;
+  --ink: #111111;
+  --fill-on: #111111;
+  --fill-on-rgb: 17, 17, 17;
+  background: transparent;}
+
+.tms[data-tone="paper"] .tms-mark { background: var(--signal); }
+
 /* ══ Generate ══════════════════════════════════════════════
    lab/Generate.tsx. A picture card and a pill under it. The
    card is a photograph edge to edge, so it answers neither

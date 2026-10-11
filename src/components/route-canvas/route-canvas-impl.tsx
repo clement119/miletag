@@ -65,10 +65,12 @@ export type RouteCanvasProps = {
    * screen. Defaults to the whole canvas.
    */
   frame?: { x: number; y: number; width: number; height: number };
-  /** Magic wand: the lifted subject (transparent PNG, same framing as the photo), drawn on top of `between`. */
+  /** Magic wand: the lifted subject (transparent PNG, same framing as the photo), drawn over the route. */
   subjectUri?: string | null;
-  /** Layer between the photo/route and the lifted subject: the design's text. */
-  between?: ReactNode;
+  /** Layer on top of everything, the lifted subject included: the design's text. */
+  overlay?: ReactNode;
+  /** A single tap on the canvas (the editor closes its controls). */
+  onTap?: () => void;
 };
 
 const MIN_SCALE = 0.15;
@@ -110,7 +112,8 @@ export default function RouteCanvas({
   size: fixedSize,
   frame,
   subjectUri,
-  between,
+  overlay,
+  onTap,
 }: RouteCanvasProps) {
   const subject = useImage(subjectUri ?? null);
   const [measured, setMeasured] = useState({ width: 0, height: 0 });
@@ -265,7 +268,14 @@ export default function RouteCanvas({
       scheduleOnRN(onTransformEnd, { ...defaultTransform });
     });
 
-  const gesture = Gesture.Simultaneous(pan, pinch, rotate, reset);
+  const tap = Gesture.Tap()
+    .numberOfTaps(1)
+    .onEnd(() => {
+      if (onTap) scheduleOnRN(onTap);
+    });
+
+  // A double tap resets; only a lone single tap counts as a tap.
+  const gesture = Gesture.Simultaneous(pan, pinch, rotate, Gesture.Exclusive(reset, tap));
 
   const onLayout = (e: LayoutChangeEvent) => {
     if (fixedSize) return;
@@ -333,9 +343,8 @@ export default function RouteCanvas({
   return (
     <View onLayout={onLayout} style={fixedSize ?? styles.wrapper}>
       {width > 0 && (interactive ? <GestureDetector gesture={gesture}>{canvas}</GestureDetector> : canvas)}
-      {between}
       {subject && width > 0 && (
-        // Above the text; touches fall through to the photo canvas.
+        // Over the route, under the text; touches fall through to the photo canvas.
         <View style={[StyleSheet.absoluteFill, styles.passThrough]}>
           <Canvas style={{ width, height }}>
             <Image image={subject} x={photoX} y={photoY} width={photoW} height={photoH} fit="fill">
@@ -344,6 +353,7 @@ export default function RouteCanvas({
           </Canvas>
         </View>
       )}
+      {overlay}
     </View>
   );
 }

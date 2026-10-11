@@ -6,7 +6,7 @@
 
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Editable, type TextField } from './editable';
+import { Editable, InlineFields, type InlinePart, type TextField } from './editable';
 import { alpha, fitFont, Overlay, PosterFonts, posterData, Sheet, splitTitle, type PosterProps } from './common';
 
 /** Shades of the chosen text colour. */
@@ -18,8 +18,13 @@ const paletteFor = (ink: string): Palette => ({
   ghost: alpha(ink, 0.55),
 });
 
-/** Name + bib top-left, two lines top-right. Shared by Big Time and Editorial. */
-type Line = { text: string; field: TextField };
+/** One line: a single field, or several fields run together (each still edited on its own). */
+type Line = { text: string; field: TextField } | { parts: InlinePart[] };
+
+/** "City, Country" as two fields; the comma only when both are there. */
+function placeParts(city: string, country: string): InlinePart[] {
+  return [{ text: city, field: 'city' }, ...(city && country ? [', '] : []), { text: country, field: 'country' }];
+}
 
 /** Two lines top-left, two lines top-right. Shared by Big Time, Editorial and Duo. */
 function TopRow({ w, c, left, right }: { w: number; c: Palette; left: [Line, Line]; right: [Line, Line] }) {
@@ -27,13 +32,21 @@ function TopRow({ w, c, left, right }: { w: number; c: Palette; left: [Line, Lin
   const small = { fontSize: w * 0.03, fontFamily: PosterFonts.regular, color: c.soft };
   const column = (lines: [Line, Line], align: 'flex-start' | 'flex-end') => (
     <View style={[styles.flex, { alignItems: align }]}>
-      {lines.map((l, i) => (
-        <Editable key={i} field={l.field} align={align} badge={i === 0 || l.field !== lines[0].field}>
-          <Text numberOfLines={1} style={i === 0 ? big : small}>
-            {l.text}
-          </Text>
-        </Editable>
-      ))}
+      {lines.map((l, i) =>
+        'parts' in l ? (
+          <InlineFields key={i} parts={l.parts} align={align} style={i === 0 ? big : small} />
+        ) : (
+          <Editable
+            key={i}
+            field={l.field}
+            align={align}
+            badge={i === 0 || !('field' in lines[0]) || l.field !== lines[0].field}>
+            <Text numberOfLines={1} style={i === 0 ? big : small}>
+              {l.text}
+            </Text>
+          </Editable>
+        ),
+      )}
     </View>
   );
   return (
@@ -106,10 +119,7 @@ export function BigTime({ doc, aspectRatio, children, footnote }: PosterProps) {
                 { text: r.name, field: 'name:0' },
                 { text: r.bib ? `#${r.bib}` : '', field: 'bib:0' },
               ]}
-              right={[
-                { text: p.location, field: 'location' },
-                { text: p.dateDots, field: 'date' },
-              ]}
+              right={[{ parts: placeParts(p.city, p.country) }, { text: p.dateDots, field: 'date' }]}
             />
             <View style={[styles.flex, styles.center, { paddingTop: w * 0.55 }]}>
               <Editable field="time:0" align="center">
@@ -252,11 +262,24 @@ export function MonoTech({ doc, aspectRatio, children, footnote }: PosterProps) 
   const p = posterData(doc);
   const r = p.runners[0];
   const neon = doc.ink;
-  const lines: Line[] = [
-    { text: `RACE: ${p.title.toUpperCase()}`, field: 'title' },
-    { text: `PARTICIPANT: ${r.name.toUpperCase()}${r.bib ? ` | BIB: ${r.bib}` : ''}`, field: 'name:0' },
-    { text: `DISTANCE: ${km(p.distanceKm).toUpperCase()} | TIME: ${r.time} | PACE: ${r.pace}/KM`, field: 'time:0' },
+  // Each line runs fields together, but every field is its own tap target.
+  const lines: InlinePart[][] = [
+    ['RACE: ', { text: p.title.toUpperCase(), field: 'title' }],
+    [
+      'PARTICIPANT: ',
+      { text: r.name.toUpperCase(), field: 'name:0' },
+      ...(r.bib ? [' | BIB: ', { text: r.bib, field: 'bib:0' as const }] : []),
+    ],
+    [
+      'DISTANCE: ',
+      { text: km(p.distanceKm).toUpperCase(), field: 'distance' },
+      ' | TIME: ',
+      { text: r.time, field: 'time:0' },
+      ' | PACE: ',
+      { text: `${r.pace}/KM`, field: 'pace:0' },
+    ],
   ];
+  const plain = (parts: InlinePart[]) => parts.map((x) => (typeof x === 'string' ? x : x.text)).join('');
   return (
     <Sheet aspectRatio={aspectRatio} style={children ? styles.dark : undefined} footnote={footnote}>
       {(w) => {
@@ -268,24 +291,20 @@ export function MonoTech({ doc, aspectRatio, children, footnote }: PosterProps) 
         };
         // One size for all three lines so they read as a block; the longest line sets it.
         // Space Mono advances 0.6 em per character, plus the letter spacing.
-        const size = Math.min(...lines.map((l) => fitFont(l.text, 0.026, 0.84, 0.7))) * w;
+        const size = Math.min(...lines.map((l) => fitFont(plain(l), 0.026, 0.84, 0.7))) * w;
         return (
           <>
             {children}
             <Overlay style={{ padding: w * 0.08, paddingTop: w * 0.08 }}>
               <Text style={[mono, { fontSize: w * 0.026 }]}>LOCATION:</Text>
-              <Editable field="location" align="center">
-                <Text numberOfLines={1} style={[mono, { fontSize: w * 0.026 }]}>
-                  {(p.location || p.dateDots).toUpperCase()}
-                </Text>
-              </Editable>
+              <InlineFields
+                parts={placeParts(p.city.toUpperCase(), p.country.toUpperCase())}
+                align="center"
+                style={[mono, { fontSize: w * 0.026 }]}
+              />
               <View style={[styles.flex, { justifyContent: 'flex-end', paddingBottom: w * 0.16, gap: w * 0.006 }]}>
-                {lines.map((l) => (
-                  <Editable key={l.field} field={l.field} align="center">
-                    <Text numberOfLines={1} style={[mono, { fontSize: size }]}>
-                      {l.text}
-                    </Text>
-                  </Editable>
+                {lines.map((l, i) => (
+                  <InlineFields key={i} parts={l} align="center" style={[mono, { fontSize: size }]} />
                 ))}
               </View>
               <Editable field="date" align="center">

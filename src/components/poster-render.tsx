@@ -63,7 +63,7 @@ export function PosterRender({ doc, width }: { doc: DesignDocument; width: numbe
       onTransformEnd={() => {}}
       photo={photo}
       subjectUri={bg.type === 'photo' && bg.cutout?.enabled ? bg.cutout.uri : null}
-      between={overlay}
+      overlay={overlay}
     />
   );
 
@@ -80,7 +80,7 @@ export function PosterRender({ doc, width }: { doc: DesignDocument; width: numbe
               </View>
             </>
           ) : (
-            // Text between the photo and the lifted subject, as in the editor.
+            // Text on top, the lifted subject under it and over the route, as in the editor.
             routeCanvas(
               aspect,
               <View style={{ position: 'absolute', left: 0, top: 0, width }}>

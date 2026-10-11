@@ -109,7 +109,7 @@ export function demoDocument(designId: string, runnerCount: RunnerCount): Design
 export function withSamples(
   doc: DesignDocument,
   /**
-   * A text field being edited ("title", "name:0", "location"…): it gets no sample, so
+   * A text field being edited ("title", "name:0"…): it gets no sample, so
    * it reads blank while the user types into it.
    */
   editing?: string | null,
@@ -133,9 +133,7 @@ export function withSamples(
       }
     : sample;
   const [field, index] = (editing ?? '').split(':');
-  const skip = (key: string, i?: number) =>
-    (field === key && (i === undefined || Number(index) === i)) ||
-    (field === 'location' && (key === 'city' || key === 'country'));
+  const skip = (key: string, i?: number) => field === key && (i === undefined || Number(index) === i);
   const pick = (value: string, sample: string, key: string, i?: number) =>
     value.trim() || skip(key, i) ? value : sample;
   const text = {

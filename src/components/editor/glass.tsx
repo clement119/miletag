@@ -126,10 +126,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.22)',
   },
   clear: { backgroundColor: 'transparent' },
-  row: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    gap: 14,
+    flexWrap: 'wrap',
+    pointerEvents: 'box-none',
+  },
   item: { alignItems: 'center', gap: 5, minWidth: 44 },
   swatchScroll: { flexGrow: 0 },
-  swatchRow: { flexGrow: 1, justifyContent: 'center', alignItems: 'flex-start', gap: 10, paddingHorizontal: 4 },
+  // Vertical room for the selected swatch's enlarged ring (a ScrollView clips).
+  swatchRow: { flexGrow: 1, justifyContent: 'center', alignItems: 'flex-start', gap: 10, padding: 4 },
   circle: {
     width: 50,
     height: 50,

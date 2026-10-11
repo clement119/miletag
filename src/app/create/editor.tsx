@@ -2,16 +2,17 @@
  * The editor, Instagram Stories style. The photo or map fills the whole screen; the
  * print area sits in the middle with the design's text laid out exactly as it
  * prints, and the bleed around it is lightly dimmed. Tool icons float over the top
- * right; tapping one shows its controls on a see-through blurred band laid OVER the
- * bottom of the preview. The preview never shrinks or moves, nothing ever opens
- * below it, and there are no Done buttons: tapping anywhere outside the controls
- * closes them. Until the user adds their own content, the design shows sample
- * content so it looks like its gallery preview.
+ * right; tapping one shows its controls, fully transparent, OVER the bottom of the
+ * preview. The preview never shrinks, nothing ever opens below it, and there are no
+ * Done buttons: tapping anywhere outside the controls closes them. The one movement
+ * is the text zoom: editing a field zooms in on it, and finishing zooms back out.
+ * Until the user adds their own content, text shows placeholders (EVENT NAME, YOUR
+ * NAME…) and the photo, route and numbers show samples.
  */
 
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Redirect, router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -22,7 +23,14 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Generate } from '@/components/bencho/generate';
@@ -65,6 +73,31 @@ const DARKEN_MAX = 80;
 /** Dim over the bleed: the part of the screen outside the print area. */
 const BLEED_DIM = 'rgba(0,0,0,0.35)';
 
+type Rect = { x: number; y: number; width: number; height: number };
+/** Stage zoom, about the screen centre: scale, then shift. */
+type Zoom = { s: number; x: number; y: number };
+const NO_ZOOM: Zoom = { s: 1, x: 0, y: 0 };
+
+/**
+ * Zoom for editing a field: enough to read it comfortably (a little for big text, more
+ * for small), with the field centred a bit above the middle so the keyboard or dial
+ * below doesn't cover it. The shift is limited so the stage covers the screen (bar a strip
+ * at the bottom, behind the controls).
+ */
+function zoomToField(field: Rect, screenW: number, screenH: number): Zoom {
+  const s = Math.min(1.7, Math.max(1.25, (screenW * 0.7) / Math.max(1, field.width)));
+  const cx = field.x + field.width / 2 - screenW / 2;
+  const cy = field.y + field.height / 2 - screenH / 2;
+  const goalY = screenH * 0.38 - screenH / 2;
+  const limitX = ((s - 1) * screenW) / 2;
+  const limitY = ((s - 1) * screenH) / 2;
+  const clamp = (v: number, limit: number) => Math.min(limit, Math.max(-limit, v));
+  // Upwards it may go further, so a field near the bottom still clears the controls; the
+  // strip this uncovers sits behind them.
+  const y = Math.min(limitY, Math.max(-limitY - screenH * 0.5, goalY - s * cy));
+  return { s, x: clamp(-s * cx, limitX), y };
+}
+
 export default function Editor() {
   const { doc, update } = useDesign();
   const [tool, setTool] = useState<ToolId | null>(null);
@@ -78,10 +111,39 @@ export default function Editor() {
   // "New photo" was tapped: show the upload pill over the print area.
   const [replacing, setReplacing] = useState(false);
   const pendingPhoto = useRef<PhotoAsset | null>(null);
-  const [adjust, setAdjust] = useState<'photo' | 'route'>('photo');
   const [runnerIndex, setRunnerIndex] = useState(0);
   const window = useWindowDimensions();
   const insets = useSafeAreaInsets();
+
+  // Text zoom: the field being edited (in unzoomed screen coordinates) and the stage zoom.
+  const [fieldRect, setFieldRect] = useState<Rect | null>(null);
+  const zoom =
+    tool === 'text' && editField && fieldRect ? zoomToField(fieldRect, window.width, window.height) : NO_ZOOM;
+  const zs = useSharedValue(1);
+  const zx = useSharedValue(0);
+  const zy = useSharedValue(0);
+  useEffect(() => {
+    const timing = { duration: 280, easing: Easing.out(Easing.cubic) };
+    zs.set(withTiming(zoom.s, timing));
+    zx.set(withTiming(zoom.x, timing));
+    zy.set(withTiming(zoom.y, timing));
+  }, [zoom.s, zoom.x, zoom.y, zs, zx, zy]);
+  const stageStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: zx.get() }, { translateY: zy.get() }, { scale: zs.get() }],
+  }));
+  /** A tapped field's on-screen rect, mapped back to the unzoomed stage. */
+  const locateField = (r: Rect) => {
+    // The zoom this render shows (its target, which the animation reaches in 280 ms).
+    const z = zoom;
+    const W = window.width;
+    const H = window.height;
+    setFieldRect({
+      x: W / 2 + (r.x - W / 2 - z.x) / z.s,
+      y: H / 2 + (r.y - H / 2 - z.y) / z.s,
+      width: r.width / z.s,
+      height: r.height / z.s,
+    });
+  };
 
   if (!doc) return <Redirect href="/create/runners" />;
   const design = getDesign(doc.designId);
@@ -142,9 +204,12 @@ export default function Editor() {
   const frameH = frameW / aspect;
   const frame = { x: (screenW - frameW) / 2, y: (screenH - frameH) / 2, width: frameW, height: frameH };
   const dialing = textMode && isDialField(editField);
-  // What the poster shows: the user's content, with samples filling the gaps (but never
-  // in the field being edited, which reads blank).
-  const display = withSamples(doc, textMode && !dialing ? editField : null, textMode);
+  // What the poster shows: the user's content; unfilled text shows what goes there
+  // (EVENT NAME, YOUR NAME…), numbers and the photo/route show samples. The field being
+  // typed into reads blank.
+  const display = withSamples(doc, textMode && !dialing ? editField : null, true);
+  // With the Route tool open, gestures on a photo move the route; otherwise they move the photo.
+  const routeGestures = activeTool === 'route' && bg.type === 'photo';
 
   const openTool = (id: ToolId | null) => {
     if (id === 'wand') {
@@ -209,7 +274,6 @@ export default function Editor() {
     pendingPhoto.current = null;
     setReplacing(false);
     if (!photo) return;
-    setAdjust('photo');
     update((d) =>
       d.background.type === 'photo'
         ? {
@@ -300,11 +364,6 @@ export default function Editor() {
       case 'city':
       case 'country':
         return setText({ [key]: value });
-      case 'location': {
-        // "City, Country": everything after the first comma is the country.
-        const [city, ...rest] = value.split(',');
-        return setText({ city: city.trim(), country: rest.join(',').trim() });
-      }
       case 'distance': {
         const km = parseFloat(value.replace(/[^\d.]/g, ''));
         return setRunner(0, { distanceKm: km > 0 ? km : undefined });
@@ -351,7 +410,7 @@ export default function Editor() {
     // Start from what the poster shows (samples included), so the dial and poster agree.
     const shown = display.doc.runners[i];
     const km = display.doc.runners[0]?.distanceKm ?? 42.2;
-    const common = { tone: 'glass' as const, corner: 22, step: '1', momentum: 60 };
+    const common = { tone: fullBleed ? ('glass' as const) : ('paper' as const), corner: 22, step: '1', momentum: 60 };
     if (key === 'distance')
       return (
         <TimeScrubber
@@ -439,12 +498,17 @@ export default function Editor() {
   /**
    * The design's layout, exactly as it prints, on the print area. Full-bleed layouts get
    * no canvas child (the canvas fills the screen behind them); paper layouts hold it.
-   * A function so the full-bleed canvas can take it as its `between` layer.
    */
   function printLayer(child?: React.ReactNode) {
     return (
       <EditableContext.Provider
-        value={{ editing: textMode, active: editField, activeEmpty: !dialing && draft === '', onEdit: beginEdit }}>
+        value={{
+          editing: textMode,
+          active: editField,
+          activeEmpty: !dialing && draft === '',
+          onEdit: beginEdit,
+          onLocate: locateField,
+        }}>
         <View testID="print-frame" style={[styles.frame, { left: frame.x, top: frame.y, width: frame.width }]}>
           <Poster doc={display.doc} aspectRatio={aspect} footnote={bg.type === 'map' ? MAP_ATTRIBUTION : undefined}>
             {child}
@@ -497,19 +561,12 @@ export default function Editor() {
         defaultTransform={look.route}
         photo={photoForCanvas}
         onPhotoCropEnd={(crop) => setPhotoOptions({ crop })}
-        adjust={adjust}
+        adjust={routeGestures ? 'route' : 'photo'}
+        // Magic wand: the subject covers the route; the text stays on top of it.
         subjectUri={bg.type === 'photo' && bg.cutout?.enabled ? bg.cutout.uri : null}
-        // In text mode the text sits on top (above the tap-outside layer), so it isn't passed in here.
-        between={fullBleed && !textMode ? printLayer() : undefined}
+        onTap={routeGestures ? closeAll : undefined}
       />
     );
-
-  const hint =
-    bg.type === 'map'
-      ? 'Drag, pinch or twist the map'
-      : bg.photo && adjust === 'photo'
-        ? 'Drag to frame · pinch to zoom · double-tap resets'
-        : 'Drag, pinch or twist the route · double-tap resets';
 
   // The upload pill (Bencho's Generate) sits in the middle of the print area when
   // there's no photo yet, or "New photo" was tapped.
@@ -563,18 +620,6 @@ export default function Editor() {
         <>
           <GlassRow>
             <GlassButton
-              icon="scan-outline"
-              label="Move photo"
-              selected={adjust === 'photo'}
-              onPress={() => setAdjust('photo')}
-            />
-            <GlassButton
-              icon="navigate-outline"
-              label="Move route"
-              selected={adjust === 'route'}
-              onPress={() => setAdjust('route')}
-            />
-            <GlassButton
               icon="contrast-outline"
               label="B&W"
               selected={bg.mono}
@@ -626,6 +671,11 @@ export default function Editor() {
       ) : null,
     route: () => (
       <>
+        {bg.type === 'photo' && (
+          <AppText variant="caption" style={[styles.message, { color: iconColour }, shadow]}>
+            Drag, pinch or twist the route
+          </AppText>
+        )}
         <GlassRow>
           <GlassButton
             icon="cloud-upload-outline"
@@ -696,49 +746,59 @@ export default function Editor() {
   const shadow = tone === 'light' ? styles.shadow : undefined;
 
   return (
-    <View style={[styles.screen, { backgroundColor: paperColour }]} accessibilityHint={hint}>
-      {/* Full-bleed: the photo or map across the whole screen, then the dimmed bleed. */}
-      {fullBleed && (
-        <>
-          <View style={StyleSheet.absoluteFill}>{canvas}</View>
-          <BleedMask frame={frame} screenW={screenW} screenH={screenH} />
-        </>
-      )}
+    <View style={[styles.screen, { backgroundColor: paperColour }]}>
+      {/* The stage: everything that prints, plus the bleed. It zooms in on a field being edited. */}
+      <Animated.View style={[StyleSheet.absoluteFill, stageStyle]}>
+        {/* Full-bleed: the photo or map across the whole screen, then the dimmed bleed. */}
+        {fullBleed && (
+          <>
+            <View style={StyleSheet.absoluteFill}>{canvas}</View>
+            <BleedMask frame={frame} screenW={screenW} screenH={screenH} />
+          </>
+        )}
 
-      {/*
-        The print area, and the tap-outside layer. Over a full-bleed photo the print area is
-        drawn inside the canvas (under the lifted subject). In text mode the text must stay
-        tappable, so it goes ABOVE the tap-outside layer; with any other tool open, the layer
-        goes on top so a tap anywhere outside the controls closes them.
-      */}
-      {textMode ? (
-        <>
-          <Pressable style={StyleSheet.absoluteFill} onPress={closeAll} accessibilityLabel="Finish editing" />
-          {/* The map/photo ignores taps here, so tapping it counts as "outside". */}
-          {fullBleed ? printLayer() : printLayer(<View style={styles.noTouch}>{canvas}</View>)}
-        </>
-      ) : (
-        <>
-          {fullBleed ? bg.type === 'map' && printLayer() : printLayer(canvas)}
-          {activeTool && (
-            <Pressable style={StyleSheet.absoluteFill} onPress={closeAll} accessibilityLabel="Close controls" />
-          )}
-        </>
-      )}
+        {/*
+          The print area, and the tap-outside layer. The text is always drawn above the canvas
+          (and above a lifted subject). In text mode the text must stay tappable, so it goes ABOVE
+          the tap-outside layer. With the Route tool on a photo the canvas takes the gestures and a
+          tap on it closes the tool. With any other tool open, the layer goes on top so a tap
+          anywhere outside the controls closes them.
+        */}
+        {textMode || routeGestures ? (
+          <>
+            {(textMode || !fullBleed) && (
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={closeAll}
+                accessibilityLabel={textMode ? 'Finish editing' : 'Close controls'}
+              />
+            )}
+            {/* In text mode the map/photo ignores taps, so tapping it counts as "outside". */}
+            {fullBleed ? printLayer() : printLayer(textMode ? <View style={styles.noTouch}>{canvas}</View> : canvas)}
+          </>
+        ) : (
+          <>
+            {fullBleed ? printLayer() : printLayer(canvas)}
+            {activeTool && (
+              <Pressable style={StyleSheet.absoluteFill} onPress={closeAll} accessibilityLabel="Close controls" />
+            )}
+          </>
+        )}
 
-      {/* Upload: Bencho's Generate pill in the middle of the print area; the photo forms in. */}
-      {showUpload && (
-        <View style={[styles.uploadLayer, { left: frame.x, top: frame.y, width: frame.width, height: frame.height }]}>
-          <Generate
-            cover
-            corner={0}
-            pace={3}
-            label={bg.photo ? 'Choose a new photo' : 'Upload your photo'}
-            onRequest={requestPhoto}
-            onDone={commitPhoto}
-          />
-        </View>
-      )}
+        {/* Upload: Bencho's Generate pill in the middle of the print area; the photo forms in. */}
+        {showUpload && (
+          <View style={[styles.uploadLayer, { left: frame.x, top: frame.y, width: frame.width, height: frame.height }]}>
+            <Generate
+              cover
+              corner={0}
+              pace={3}
+              label={bg.photo ? 'Choose a new photo' : 'Upload your photo'}
+              onRequest={requestPhoto}
+              onDone={commitPhoto}
+            />
+          </View>
+        )}
+      </Animated.View>
 
       {/* Hidden input behind direct text editing: only the keyboard shows; the poster is the text box. */}
       <TextInput
@@ -766,58 +826,45 @@ export default function Editor() {
         style={[styles.back, { top: insets.top + Spacing.two }]}>
         <Ionicons name="chevron-back" size={28} color={iconColour} style={shadow} />
       </Pressable>
-      {/* Hidden while a dial is open: the dial sits up here (see below). */}
-      {!dialing && (
-        <ToolRail
-          tools={tools}
-          value={activeTool}
-          onChange={openTool}
-          tone={tone}
-          style={[styles.rail, { top: insets.top + Spacing.two }]}
-        />
-      )}
-
-      {/*
-        Text mode: its controls float at the TOP. Time, pace and distance sit in the lower
-        half of every design, so the field being edited stays visible and tappable.
-      */}
-      {textMode && (
-        <View
-          style={[styles.topControls, dialing && styles.topControlsWide, { top: insets.top + Spacing.two }]}
-          pointerEvents="box-none">
-          {dialing && editField ? (
-            fieldDial(editField)
-          ) : (
-            <GlassSwatchRow>
-              {look.inks.map((ink) => (
-                <GlassSwatch
-                  key={ink.hex}
-                  label={`Text colour ${ink.name}`}
-                  fill={ink.hex}
-                  showLabel={false}
-                  selected={doc.ink === ink.hex}
-                  onPress={() => update((d) => ({ ...d, ink: ink.hex }))}
-                />
-              ))}
-            </GlassSwatchRow>
-          )}
-          <AppText
-            variant="caption"
-            style={[styles.message, notice ? { color: Colors.accent } : null, styles.shadow]}
-            numberOfLines={2}>
-            {notice ??
-              (dialing
-                ? 'Drag or flick the dial. Tap outside to finish.'
-                : 'Tap any text to change it. Tap outside to finish.')}
-          </AppText>
-        </View>
-      )}
+      <ToolRail
+        tools={tools}
+        value={activeTool}
+        onChange={openTool}
+        tone={tone}
+        style={[styles.rail, { top: insets.top + Spacing.two }]}
+      />
 
       <KeyboardAvoidingView
         style={styles.bottom}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         pointerEvents="box-none">
-        {textMode ? null : activeTool ? (
+        {textMode ? (
+          // Text mode: the colours (or the dial for time, pace, distance) along the bottom.
+          <Clear style={[styles.tray, { paddingBottom: insets.bottom + Spacing.three }]}>
+            {/* No standing hint: the pencils say what's editable, and the poster stays clear. */}
+            {notice && (
+              <AppText variant="caption" style={[styles.message, { color: Colors.accent }, shadow]} numberOfLines={2}>
+                {notice}
+              </AppText>
+            )}
+            {dialing && editField ? (
+              <View style={styles.center}>{fieldDial(editField)}</View>
+            ) : (
+              <GlassSwatchRow>
+                {look.inks.map((ink) => (
+                  <GlassSwatch
+                    key={ink.hex}
+                    label={`Text colour ${ink.name}`}
+                    fill={ink.hex}
+                    showLabel={false}
+                    selected={doc.ink === ink.hex}
+                    onPress={() => update((d) => ({ ...d, ink: ink.hex }))}
+                  />
+                ))}
+              </GlassSwatchRow>
+            )}
+          </Clear>
+        ) : activeTool ? (
           // Controls on a see-through blurred band laid over the bottom of the preview.
           // The preview behind it never moves or shrinks. No Done: tap outside to close.
           <Clear style={[styles.tray, { paddingBottom: insets.bottom + Spacing.three }]}>
@@ -833,11 +880,8 @@ export default function Editor() {
           </Clear>
         ) : (
           <View style={[styles.bottomBar, { paddingBottom: insets.bottom + Spacing.three }]} pointerEvents="box-none">
-            <AppText
-              variant="caption"
-              style={[styles.hint, { color: notice ? Colors.accent : iconColour }, shadow]}
-              numberOfLines={2}>
-              {notice ?? hint}
+            <AppText variant="caption" style={[styles.hint, { color: Colors.accent }, shadow]} numberOfLines={2}>
+              {notice ?? ''}
             </AppText>
             {/* Next: just an arrow. */}
             <Pressable
@@ -864,8 +908,8 @@ export default function Editor() {
             <Ionicons name="color-wand-outline" size={30} color="#fff" />
             <AppText style={styles.introTitle}>Magic wand</AppText>
             <AppText style={styles.introBody}>
-              Finds you in the photo and lifts you to the front, so the route and the text sit behind you, like a
-              magazine cover. Tap the wand again any time to switch it off.
+              Finds you in the photo and lifts you in front of the route, so it runs behind you like a magazine cover.
+              The text stays on top. Tap the wand again any time to switch it off.
             </AppText>
             <Pressable accessibilityRole="button" onPress={runWand} disabled={lifting} style={styles.introGo}>
               {lifting ? (
@@ -926,7 +970,8 @@ function Input(props: React.ComponentProps<typeof TextInput>) {
 const blur = Platform.OS === 'web' ? { backdropFilter: 'blur(24px) saturate(1.3)' } : null;
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.background },
+  // Clipped: the zoomed stage must never make the page scroll.
+  screen: { flex: 1, backgroundColor: Colors.background, overflow: 'hidden' },
   // minWidth 0 lets inputs share a row (web inputs otherwise keep a default width).
   flex: { flex: 1, minWidth: 0 },
   center: { alignItems: 'center' },
@@ -937,7 +982,9 @@ const styles = StyleSheet.create({
   rail: { position: 'absolute', right: Spacing.three },
   shadow: { textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  // Only the controls themselves take a touch: text under the band stays tappable.
   tray: {
+    pointerEvents: 'box-none',
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
     borderWidth: 0,
@@ -945,11 +992,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     gap: Spacing.three,
   },
-  message: { color: '#fff', textAlign: 'center' },
+  message: { color: '#fff', textAlign: 'center', pointerEvents: 'none' },
   noTouch: { pointerEvents: 'none' },
-  topControls: { position: 'absolute', left: 56, right: 56, alignItems: 'center', gap: Spacing.two },
-  // The dial is 300 wide; the rail hides while it's open, so it can use the full width.
-  topControlsWide: { left: Spacing.three, right: Spacing.three },
   bottomBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingHorizontal: Spacing.three },
   hint: { flex: 1 },
   nextButton: {
