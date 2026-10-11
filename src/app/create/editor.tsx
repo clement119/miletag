@@ -2,34 +2,38 @@
  * The editor, Instagram Stories style. The photo or map fills the whole screen; the
  * print area sits in the middle with the design's text laid out exactly as it
  * prints, and the bleed around it is lightly dimmed. Tool icons float over the top
- * right; tapping one opens its toolkit at the bottom and the print area shrinks to
- * stay in view. Every overlay is see-through. Until the user adds their own
- * content, the design shows sample content so it looks like its gallery preview.
+ * right; tapping one shows that tool's controls as floating glass icons at the
+ * bottom (never a tray) and the print area shrinks to stay in view. Until the user
+ * adds their own content, the design shows sample content so it looks like its
+ * gallery preview.
  */
 
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Redirect, router } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AnimatedTabs } from '@/components/animated-tabs';
+import { Generate } from '@/components/bencho/generate';
+import { TimeScrubber } from '@/components/bencho/time-scrubber';
+import { Glass, GlassButton, GlassRow, GlassSwatch } from '@/components/editor/glass';
 import { ToolRail, type ToolItem } from '@/components/editor/tool-bar';
 import { MapCanvas } from '@/components/map-canvas';
 import { GRADE_COLOUR, getPhotoQuality, PhotoQualityNotice } from '@/components/photo-quality';
 import { canvasAspect, Poster } from '@/components/posters';
 import { EditableContext, type TextField } from '@/components/posters/editable';
 import { RouteCanvas } from '@/components/route-canvas';
-import { AppText, Button, Chip, tap } from '@/components/ui';
+import { AppText } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { getDesign, PAPER_MM } from '@/domain/catalog';
 import { switchBackground, type Background } from '@/domain/design-document';
@@ -38,19 +42,21 @@ import { DEMO_PHOTO, withSamples } from '@/domain/demo';
 import { pickPhoto } from '@/domain/import-photo';
 import { LiftUnavailableError, liftSubject } from '@/domain/lift-subject';
 import { getMapStyle, MAP_ATTRIBUTION, MAP_STYLES, type MapLayerToggles, type MapStyleId } from '@/domain/map-styles';
-import { DEFAULT_PHOTO_CROP, SCRIM_LEVELS } from '@/domain/photo';
+import { DEFAULT_PHOTO_CROP, type PhotoAsset } from '@/domain/photo';
 import { formatDuration, parseDuration } from '@/domain/race';
 import { GpxParseError } from '@/domain/route/gpx';
 import { pickGpxRoute } from '@/domain/route/import-gpx';
 import { useDesign } from '@/state/design-store';
 
-/** 'text' is a mode, not a sheet: pencil badges on the poster, colours along the bottom. */
-/** 'wand' is an on/off switch: lifts the photo's subject above the text. */
+/**
+ * 'text' is a mode (pencils on the poster, colours along the bottom); 'wand' is a
+ * switch (with a one-off intro). The rest show floating glass controls.
+ */
 type ToolId = 'background' | 'adjust' | 'layers' | 'route' | 'text' | 'runner' | 'wand' | 'quality';
 
 const ROUTE_COLOURS = ['#F5A623', '#E4572E', '#E4FF1A', '#FFFFFF', '#111111', '#2F80ED'];
-/** Height of the toolkit sheet when a tool is open. */
-const SHEET_HEIGHT = 236;
+/** Darken scale, in % of black over the photo. */
+const DARKEN_MAX = 80;
 /** Dim over the bleed: the part of the screen outside the print area. */
 const BLEED_DIM = 'rgba(0,0,0,0.35)';
 
@@ -58,12 +64,15 @@ export default function Editor() {
   const { doc, update } = useDesign();
   const [tool, setTool] = useState<ToolId | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [timeText, setTimeText] = useState<Record<number, string>>({});
   // Direct text editing: the field being edited and what's typed so far.
   const [editField, setEditField] = useState<TextField | null>(null);
   const [draft, setDraft] = useState('');
   const inputRef = useRef<TextInput>(null);
   const [lifting, setLifting] = useState(false);
+  const [wandIntro, setWandIntro] = useState(false);
+  // "New photo" was tapped: show the upload pill over the print area.
+  const [replacing, setReplacing] = useState(false);
+  const pendingPhoto = useRef<PhotoAsset | null>(null);
   const [adjust, setAdjust] = useState<'photo' | 'route'>('photo');
   const [runnerIndex, setRunnerIndex] = useState(0);
   const window = useWindowDimensions();
@@ -85,19 +94,6 @@ export default function Editor() {
   // Light icons over photos and maps, dark icons over paper.
   const tone: 'light' | 'dark' = fullBleed ? 'light' : 'dark';
 
-  // The print area: as big as the screen allows (full width on a phone), centred.
-  // With a toolkit open it fits in the space above it. Sized from the window, never onLayout.
-  const screenW = window.width;
-  const screenH = window.height;
-  const sheetOpen = tool !== null && tool !== 'text';
-  const top = sheetOpen ? insets.top + Spacing.two : 0;
-  const room = sheetOpen ? screenH - SHEET_HEIGHT - insets.bottom - top - Spacing.two : screenH;
-  const frameW = Math.max(120, Math.min(screenW, room * aspect));
-  const frameH = frameW / aspect;
-  const frame = { x: (screenW - frameW) / 2, y: top + (room - frameH) / 2, width: frameW, height: frameH };
-  // What the poster shows: the user's content, with samples filling the gaps.
-  const display = withSamples(doc);
-
   const tools: ToolItem<ToolId>[] = [
     { id: 'background', label: 'Background', icon: bg.type === 'photo' ? 'image-outline' : 'map-outline' },
     bg.type === 'photo'
@@ -105,7 +101,8 @@ export default function Editor() {
       : { id: 'layers', label: 'Layers', icon: 'layers-outline' },
     { id: 'route', label: 'Route', icon: 'navigate-outline', dot: doc.route.geo ? undefined : Colors.accent },
     { id: 'text', label: 'Edit text', icon: 'text-outline' },
-    { id: 'runner', label: doc.runners.length > 1 ? 'Runners' : 'Runner', icon: 'person-outline' },
+    // Layouts edit names and times on the poster; designs without a layout yet still need a form.
+    ...(hasLayout(doc.designId) ? [] : [{ id: 'runner' as const, label: 'Runners', icon: 'person-outline' as const }]),
     // Magic wand: only where text sits over the photo.
     ...(fullBleed && bg.type === 'photo'
       ? [
@@ -132,15 +129,42 @@ export default function Editor() {
   const activeTool = tools.some((t) => t.id === tool) ? tool : null;
   const textMode = activeTool === 'text';
 
+  // Height of the floating controls per tool, so the print area can shrink above them.
+  const controlsHeight: Partial<Record<ToolId, number>> = {
+    background: bg.type === 'map' ? 190 : 110,
+    adjust: 290,
+    layers: 120,
+    route: 180,
+    quality: 210,
+    runner: 230,
+    // The colour dots and hint, so they never sit on the poster's own text.
+    text: 120,
+  };
+  const reserved = activeTool ? (controlsHeight[activeTool] ?? 0) : 0;
+
+  // The print area: as big as the screen allows (full width on a phone), centred.
+  // With controls showing it fits in the space above them. Sized from the window, never onLayout.
+  const screenW = window.width;
+  const screenH = window.height;
+  const top = reserved ? insets.top + Spacing.two : 0;
+  const room = reserved ? screenH - reserved - insets.bottom - top - Spacing.two : screenH;
+  const frameW = Math.max(120, Math.min(screenW, room * aspect));
+  const frameH = frameW / aspect;
+  const frame = { x: (screenW - frameW) / 2, y: top + (room - frameH) / 2, width: frameW, height: frameH };
+  // What the poster shows: the user's content, with samples filling the gaps (but never
+  // in the field being edited, which reads blank).
+  const display = withSamples(doc, textMode ? editField : null);
+
   const openTool = (id: ToolId | null) => {
     if (id === 'wand') {
-      toggleWand();
+      startWand();
       return;
     }
     if (id !== 'text') {
       inputRef.current?.blur();
       setEditField(null);
     }
+    setReplacing(false);
     setNotice(null);
     setTool(id);
   };
@@ -175,24 +199,35 @@ export default function Editor() {
   // The background being left is kept, so switching back restores the same photo or map view.
   const setBackgroundType = (type: Background['type']) => update((d) => switchBackground(d, type));
 
-  const choosePhoto = async () => {
+  /** Upload, step 1 (Generate's press): pick a photo and hand its preview to the forming animation. */
+  const requestPhoto = async (): Promise<string | null> => {
     setNotice(null);
     try {
       const photo = await pickPhoto();
-      if (!photo) return;
-      setAdjust('photo');
-      update((d) =>
-        d.background.type === 'photo'
-          ? {
-              ...d,
-              // A new photo starts fresh: no crop, no low-res OK, no lifted subject.
-              background: { ...d.background, photo, crop: { ...DEFAULT_PHOTO_CROP }, lowResAckDpi: null, cutout: null },
-            }
-          : d,
-      );
+      pendingPhoto.current = photo;
+      return photo?.previewUri ?? null;
     } catch {
       setNotice('Could not open that photo.');
+      return null;
     }
+  };
+
+  /** Upload, step 2 (the picture has formed): it becomes the background. */
+  const commitPhoto = () => {
+    const photo = pendingPhoto.current;
+    pendingPhoto.current = null;
+    setReplacing(false);
+    if (!photo) return;
+    setAdjust('photo');
+    update((d) =>
+      d.background.type === 'photo'
+        ? {
+            ...d,
+            // A new photo starts fresh: no crop, no low-res OK, no lifted subject.
+            background: { ...d.background, photo, crop: { ...DEFAULT_PHOTO_CROP }, lowResAckDpi: null, cutout: null },
+          }
+        : d,
+    );
   };
 
   const setPhotoOptions = (patch: Partial<Extract<Background, { type: 'photo' }>>) =>
@@ -224,8 +259,11 @@ export default function Editor() {
 
   // ---- Magic wand ----------------------------------------------------------
 
-  /** Lifts the subject above the text (first tap detects it; later taps switch it on/off). */
-  const toggleWand = async () => {
+  /**
+   * The wand icon: switches a lifted subject on/off. The first time, it explains
+   * itself in the middle of the screen and waits for a tap there before running.
+   */
+  const startWand = () => {
     if (bg.type !== 'photo' || lifting) return;
     setNotice(null);
     if (bg.cutout) {
@@ -234,9 +272,15 @@ export default function Editor() {
     }
     if (!bg.photo) {
       setTool('background');
-      setNotice('Choose your photo first, then tap the wand.');
+      setNotice('Upload your photo first, then tap the wand.');
       return;
     }
+    setTool(null);
+    setWandIntro(true);
+  };
+
+  const runWand = async () => {
+    if (bg.type !== 'photo' || !bg.photo || lifting) return;
     setLifting(true);
     try {
       const cutout = await liftSubject(bg.photo.previewUri);
@@ -250,35 +294,11 @@ export default function Editor() {
       );
     } finally {
       setLifting(false);
+      setWandIntro(false);
     }
   };
 
   // ---- Direct text editing -------------------------------------------------
-
-  /** The real value of a field (never a sample), as the user types it. */
-  const fieldValue = (field: TextField): string => {
-    const [key, index] = field.split(':');
-    const runner = doc.runners[Number(index) || 0];
-    switch (key) {
-      case 'title':
-      case 'date':
-      case 'city':
-      case 'country':
-        return doc.text[key];
-      case 'location':
-        return [doc.text.city, doc.text.country].filter(Boolean).join(', ');
-      case 'distance':
-        return doc.runners[0]?.distanceKm ? String(doc.runners[0].distanceKm) : '';
-      case 'name':
-        return runner?.name ?? '';
-      case 'bib':
-        return runner?.bib ?? '';
-      case 'time':
-        return runner?.timeSeconds ? formatDuration(runner.timeSeconds) : '';
-      default:
-        return '';
-    }
-  };
 
   const setFieldValue = (field: TextField, value: string) => {
     const [key, index] = field.split(':');
@@ -303,7 +323,7 @@ export default function Editor() {
       case 'bib':
         return setRunner(i, { bib: value.replace(/^#/, '') });
       case 'time': {
-        setTimeText((t) => ({ ...t, [i]: value }));
+        if (!value.trim()) return setRunner(i, { timeSeconds: undefined });
         const seconds = parseDuration(value);
         if (seconds !== undefined) setRunner(i, { timeSeconds: seconds });
         return;
@@ -312,14 +332,15 @@ export default function Editor() {
   };
 
   /**
-   * Starts editing a field: focuses the hidden input so only the keyboard appears and
-   * the poster text updates as you type. Called straight from a tap, so mobile
-   * browsers allow the keyboard to open.
+   * Starts editing a field: it blanks out for a fresh start, and the hidden input takes
+   * focus so only the keyboard appears and the poster text updates as you type. Called
+   * straight from a tap, so mobile browsers allow the keyboard to open.
    */
   const beginEdit = (field: TextField) => {
     setTool('text');
     setEditField(field);
-    setDraft(fieldValue(field));
+    setDraft('');
+    setFieldValue(field, '');
     inputRef.current?.focus();
   };
 
@@ -348,7 +369,7 @@ export default function Editor() {
       beginEdit(`time:${missingTime}`);
     } else if (bg.type === 'photo' && !bg.photo) {
       setTool('background');
-      setNotice('Choose a photo, or switch to Map.');
+      setNotice('Upload your photo, or switch to Map.');
     } else if (quality?.blocked) {
       setTool('quality');
       setNotice('This photo is low resolution for the size. Confirm below or adjust it.');
@@ -366,7 +387,8 @@ export default function Editor() {
    */
   function printLayer(child?: React.ReactNode) {
     return (
-      <EditableContext.Provider value={{ editing: textMode, active: editField, onEdit: beginEdit }}>
+      <EditableContext.Provider
+        value={{ editing: textMode, active: editField, activeEmpty: draft === '', onEdit: beginEdit }}>
         <View style={[styles.frame, { left: frame.x, top: frame.y, width: frame.width }]}>
           <Poster doc={display.doc} aspectRatio={aspect} footnote={bg.type === 'map' ? MAP_ATTRIBUTION : undefined}>
             {child}
@@ -387,7 +409,7 @@ export default function Editor() {
             scrim: bg.scrim,
             mono: bg.mono,
           }
-        : // Sample photo until they choose theirs.
+        : // Sample photo until they upload theirs.
           { ...DEMO_PHOTO, crop: bg.crop, scrim: bg.scrim, mono: bg.mono }
       : null;
 
@@ -425,8 +447,6 @@ export default function Editor() {
       />
     );
 
-  // Full-bleed layouts get no canvas child: they render just their text, transparent, over the frame.
-
   const hint =
     bg.type === 'map'
       ? 'Drag, pinch or twist the map'
@@ -434,131 +454,166 @@ export default function Editor() {
         ? 'Drag to frame · pinch to zoom · double-tap resets'
         : 'Drag, pinch or twist the route · double-tap resets';
 
-  // ---- Panels --------------------------------------------------------------
+  // The upload pill (Bencho's Generate) sits in the middle of the print area when
+  // there's no photo yet, or "New photo" was tapped.
+  const showUpload = activeTool === 'background' && bg.type === 'photo' && (!bg.photo || replacing);
 
-  const panels: Record<ToolId, () => React.ReactNode> = {
+  // ---- Floating controls (glass, no tray) ----------------------------------
+
+  const controls: Partial<Record<ToolId, () => React.ReactNode>> = {
     background: () => (
       <>
-        <AnimatedTabs
-          accessibilityLabel="Background"
-          items={[
-            { value: 'photo', label: 'Photo' },
-            { value: 'map', label: 'Map' },
-          ]}
-          value={bg.type}
-          onChange={setBackgroundType}
-        />
-        {bg.type === 'photo' ? (
-          <>
-            <Button
-              label={bg.photo ? 'Replace photo' : 'Choose photo'}
-              variant={bg.photo ? 'secondary' : 'primary'}
-              onPress={choosePhoto}
+        <GlassRow>
+          <GlassButton
+            icon="image-outline"
+            label="Photo"
+            selected={bg.type === 'photo'}
+            onPress={() => setBackgroundType('photo')}
+          />
+          <GlassButton
+            icon="map-outline"
+            label="Map"
+            selected={bg.type === 'map'}
+            onPress={() => setBackgroundType('map')}
+          />
+          {bg.type === 'photo' && bg.photo && (
+            <GlassButton
+              icon="cloud-upload-outline"
+              label="New photo"
+              selected={replacing}
+              onPress={() => setReplacing((r) => !r)}
             />
-            <AppText variant="caption">Use a photo you took or have permission to use.</AppText>
-          </>
-        ) : (
-          <View style={styles.row}>
+          )}
+        </GlassRow>
+        {bg.type === 'map' && (
+          <GlassRow>
             {MAP_STYLES.map((s) => (
-              <Swatch
+              <GlassSwatch
                 key={s.id}
                 label={s.name}
+                fill={s.palette.background}
+                ring={s.routeColor}
                 selected={bg.styleId === s.id}
                 onPress={() => setMapStyle(s.id)}
-                fill={s.palette.background}
-                line={s.routeColor}
               />
             ))}
-          </View>
+          </GlassRow>
         )}
       </>
     ),
     adjust: () =>
       bg.type === 'photo' ? (
         <>
-          <AnimatedTabs
-            accessibilityLabel="Gestures move"
-            items={[
-              { value: 'photo', label: 'Move photo' },
-              { value: 'route', label: 'Move route' },
-            ]}
-            value={adjust}
-            onChange={setAdjust}
-          />
-          <View style={styles.row}>
-            {SCRIM_LEVELS.map((level) => (
-              <Chip
-                key={level.value}
-                label={level.value === 0 ? 'No darken' : level.label}
-                selected={bg.scrim === level.value}
-                onPress={() => setPhotoOptions({ scrim: level.value })}
-              />
-            ))}
-            <Chip label="B&W" selected={bg.mono} onPress={() => setPhotoOptions({ mono: !bg.mono })} />
+          <GlassRow>
+            <GlassButton
+              icon="scan-outline"
+              label="Move photo"
+              selected={adjust === 'photo'}
+              onPress={() => setAdjust('photo')}
+            />
+            <GlassButton
+              icon="navigate-outline"
+              label="Move route"
+              selected={adjust === 'route'}
+              onPress={() => setAdjust('route')}
+            />
+            <GlassButton
+              icon="contrast-outline"
+              label="B&W"
+              selected={bg.mono}
+              onPress={() => setPhotoOptions({ mono: !bg.mono })}
+            />
+          </GlassRow>
+          {/* Darken: Bencho's time scrubber, run as a 0–80 % ruler. */}
+          <View style={styles.center}>
+            <TimeScrubber
+              key={bg.photo?.uri ?? 'sample'}
+              tone="glass"
+              corner={22}
+              min={0}
+              max={DARKEN_MAX}
+              step="5"
+              pxPerUnit={4}
+              ticks={{ minor: 5, mid: 10, major: 20 }}
+              value={Math.round(bg.scrim * 100)}
+              formatValue={(v) => ({ time: `${Math.round(v)}%`, mer: 'DARKEN' })}
+              formatTick={(v) => `${v}%`}
+              ariaLabel="Darken"
+              onChange={(v) => setPhotoOptions({ scrim: Math.round(v) / 100 })}
+            />
           </View>
         </>
       ) : null,
     layers: () =>
       bg.type === 'map' ? (
-        <>
-          <AppText variant="caption">Show on the map</AppText>
-          <View style={styles.row}>
-            {(['water', 'parks', 'roads'] as const).map((key) => (
-              <Chip
-                key={key}
-                label={key[0].toUpperCase() + key.slice(1)}
-                selected={bg.layers[key]}
-                onPress={() => setLayer(key, !bg.layers[key])}
-              />
-            ))}
-          </View>
-        </>
+        <GlassRow>
+          <GlassButton
+            icon="water-outline"
+            label="Water"
+            selected={bg.layers.water}
+            onPress={() => setLayer('water', !bg.layers.water)}
+          />
+          <GlassButton
+            icon="leaf-outline"
+            label="Parks"
+            selected={bg.layers.parks}
+            onPress={() => setLayer('parks', !bg.layers.parks)}
+          />
+          <GlassButton
+            icon="git-network-outline"
+            label="Roads"
+            selected={bg.layers.roads}
+            onPress={() => setLayer('roads', !bg.layers.roads)}
+          />
+        </GlassRow>
       ) : null,
     route: () => (
       <>
-        <Button
-          label={doc.route.geo ? 'Replace GPX route' : 'Upload GPX route'}
-          variant={doc.route.geo ? 'secondary' : 'primary'}
-          onPress={importGpx}
-        />
-        <AppText variant="caption">Route colour</AppText>
-        <View style={styles.row}>
+        <GlassRow>
+          <GlassButton
+            icon="cloud-upload-outline"
+            label={doc.route.geo ? 'New GPX' : 'Upload GPX'}
+            onPress={importGpx}
+          />
+        </GlassRow>
+        <GlassRow>
           {ROUTE_COLOURS.map((c) => (
-            <Pressable
+            <GlassSwatch
               key={c}
-              accessibilityRole="button"
-              accessibilityLabel={`Route colour ${c}`}
-              accessibilityState={{ selected: doc.route.stroke.color === c }}
-              onPress={() => {
-                tap();
-                update((d) => ({ ...d, route: { ...d.route, stroke: { ...d.route.stroke, color: c } } }));
-              }}
-              style={[styles.colour, { backgroundColor: c }, doc.route.stroke.color === c && styles.colourSelected]}
+              label={`Route colour ${c}`}
+              fill={c}
+              showLabel={false}
+              selected={doc.route.stroke.color === c}
+              onPress={() => update((d) => ({ ...d, route: { ...d.route, stroke: { ...d.route.stroke, color: c } } }))}
             />
           ))}
-        </View>
+        </GlassRow>
       </>
+    ),
+    quality: () => (
+      <Glass style={styles.card}>
+        <PhotoQualityNotice doc={doc} onAcknowledge={(lowResAckDpi) => setPhotoOptions({ lowResAckDpi })} />
+      </Glass>
     ),
     runner: () => {
       const i = Math.min(runnerIndex, doc.runners.length - 1);
       const runner = doc.runners[i];
-      const shownTime = timeText[i] ?? (runner.timeSeconds ? formatDuration(runner.timeSeconds) : '');
       return (
-        <>
+        <Glass style={styles.card}>
           {doc.runners.length > 1 && (
             <View style={styles.row}>
               {doc.runners.map((r, n) => (
-                <Chip
+                <Pressable
                   key={n}
-                  label={r.name || `Runner ${n + 1}`}
-                  selected={n === i}
                   onPress={() => setRunnerIndex(n)}
-                />
+                  style={[styles.runnerTab, n === i && styles.runnerTabOn]}>
+                  <AppText style={styles.runnerTabText}>{r.name || `Runner ${n + 1}`}</AppText>
+                </Pressable>
               ))}
             </View>
           )}
           <Input placeholder="Name" value={runner.name} onChangeText={(name) => setRunner(i, { name })} />
-          <View style={styles.inputRow}>
+          <View style={styles.row}>
             <Input
               placeholder="Bib"
               value={runner.bib ?? ''}
@@ -567,28 +622,21 @@ export default function Editor() {
             />
             <Input
               placeholder="Chip time h:mm:ss"
-              value={shownTime}
+              defaultValue={runner.timeSeconds ? formatDuration(runner.timeSeconds) : ''}
               onChangeText={(text) => {
-                setTimeText((t) => ({ ...t, [i]: text }));
                 const seconds = parseDuration(text);
                 if (seconds !== undefined) setRunner(i, { timeSeconds: seconds });
               }}
               style={styles.flex}
             />
           </View>
-        </>
+        </Glass>
       );
     },
-    // Text editing happens on the poster itself; no sheet.
-    text: () => null,
-    // The wand is a switch on the rail, not a sheet.
-    wand: () => null,
-    quality: () => <PhotoQualityNotice doc={doc} onAcknowledge={(lowResAckDpi) => setPhotoOptions({ lowResAckDpi })} />,
   };
 
-  const toolTitle = tools.find((t) => t.id === activeTool)?.label;
-
   const iconColour = tone === 'light' ? '#fff' : '#111';
+  const shadow = tone === 'light' ? styles.shadow : undefined;
   const hintText = display.usingSamples ? 'Showing sample content. Tap the icons to make it yours.' : hint;
 
   return (
@@ -603,6 +651,20 @@ export default function Editor() {
 
       {/* The print area. Over a full-bleed photo it's drawn inside the canvas, under the lifted subject. */}
       {fullBleed ? bg.type === 'map' && printLayer() : printLayer(canvas)}
+
+      {/* Upload: Bencho's Generate pill in the middle of the print area; the photo forms in. */}
+      {showUpload && (
+        <View style={[styles.uploadLayer, { left: frame.x, top: frame.y, width: frame.width, height: frame.height }]}>
+          <Generate
+            cover
+            corner={0}
+            pace={3}
+            label={bg.photo ? 'Choose a new photo' : 'Upload your photo'}
+            onRequest={requestPhoto}
+            onDone={commitPhoto}
+          />
+        </View>
+      )}
 
       {/* Hidden input behind direct text editing: only the keyboard shows; the poster is the text box. */}
       <TextInput
@@ -629,7 +691,7 @@ export default function Editor() {
         onPress={() => router.back()}
         hitSlop={10}
         style={[styles.back, { top: insets.top + Spacing.two }]}>
-        <Ionicons name="chevron-back" size={28} color={iconColour} style={tone === 'light' && styles.shadow} />
+        <Ionicons name="chevron-back" size={28} color={iconColour} style={shadow} />
       </Pressable>
       <ToolRail
         tools={tools}
@@ -643,70 +705,83 @@ export default function Editor() {
         style={styles.bottom}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         pointerEvents="box-none">
-        {textMode ? (
-          // Text mode: colours straight on the poster, no tray.
-          <View style={[styles.textBar, { paddingBottom: insets.bottom + Spacing.three }]} pointerEvents="box-none">
-            <AppText
-              variant="caption"
-              style={[{ color: notice ? Colors.accent : iconColour }, tone === 'light' && styles.shadow]}
-              numberOfLines={2}>
-              {notice ?? 'Tap a ✎ to edit that text. Pick a colour below.'}
-            </AppText>
-            <View style={styles.swatchRow} pointerEvents="box-none">
+        <View style={[styles.controls, { paddingBottom: insets.bottom + Spacing.three }]} pointerEvents="box-none">
+          {/* One line for messages, with Done on the right while a tool is open. */}
+          {(notice || activeTool) && (
+            <View style={styles.messageRow} pointerEvents="box-none">
+              <AppText
+                variant="caption"
+                style={[styles.message, { color: notice ? Colors.accent : iconColour }, shadow]}
+                numberOfLines={2}>
+                {notice ?? (textMode ? 'Tap any text to retype it. Pick a colour below.' : '')}
+              </AppText>
+              {activeTool && (
+                <Pressable accessibilityRole="button" onPress={() => openTool(null)} hitSlop={10}>
+                  <AppText style={[styles.done, shadow]}>Done</AppText>
+                </Pressable>
+              )}
+            </View>
+          )}
+
+          {textMode ? (
+            // Text mode: the design's colours straight on the poster, no tray.
+            <GlassRow>
               {look.inks.map((ink) => (
-                <Pressable
+                <GlassSwatch
                   key={ink.hex}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Text colour ${ink.name}`}
-                  accessibilityState={{ selected: doc.ink === ink.hex }}
-                  hitSlop={6}
-                  onPress={() => {
-                    tap();
-                    update((d) => ({ ...d, ink: ink.hex }));
-                  }}
-                  style={[
-                    styles.inkDot,
-                    { backgroundColor: ink.hex, borderColor: iconColour },
-                    doc.ink === ink.hex && styles.inkDotSelected,
-                  ]}
+                  label={ink.name}
+                  fill={ink.hex}
+                  selected={doc.ink === ink.hex}
+                  onPress={() => update((d) => ({ ...d, ink: ink.hex }))}
                 />
               ))}
-              <Pressable accessibilityRole="button" onPress={() => openTool(null)} hitSlop={10} style={styles.textDone}>
-                <AppText style={[styles.done, tone === 'light' && styles.shadow]}>Done</AppText>
+            </GlassRow>
+          ) : activeTool ? (
+            controls[activeTool]?.()
+          ) : (
+            <View style={styles.bottomBar} pointerEvents="box-none">
+              <AppText variant="caption" style={[styles.hint, { color: iconColour }, shadow]} numberOfLines={2}>
+                {notice ? '' : hintText}
+              </AppText>
+              <Pressable accessibilityRole="button" onPress={next} style={styles.nextButton}>
+                <AppText style={styles.nextLabel}>Next</AppText>
               </Pressable>
             </View>
-          </View>
-        ) : activeTool ? (
-          <View style={[styles.sheet, { height: SHEET_HEIGHT + insets.bottom, paddingBottom: insets.bottom }]}>
-            <View style={styles.sheetHeader}>
-              <AppText style={styles.sheetTitle}>{toolTitle}</AppText>
-              <Pressable accessibilityRole="button" onPress={() => openTool(null)} hitSlop={10}>
-                <AppText style={styles.done}>Done</AppText>
-              </Pressable>
-            </View>
-            <ScrollView contentContainerStyle={styles.panelContent} bounces={false} keyboardShouldPersistTaps="handled">
-              {notice && (
-                <View style={styles.notice}>
-                  <AppText style={styles.noticeText}>{notice}</AppText>
-                </View>
-              )}
-              {panels[activeTool]()}
-            </ScrollView>
-          </View>
-        ) : (
-          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + Spacing.three }]} pointerEvents="box-none">
-            <AppText
-              variant="caption"
-              style={[styles.hint, { color: iconColour }, tone === 'light' && styles.shadow]}
-              numberOfLines={2}>
-              {notice ?? hintText}
-            </AppText>
-            <Pressable accessibilityRole="button" onPress={next} style={styles.nextButton}>
-              <AppText style={styles.nextLabel}>Next</AppText>
-            </Pressable>
-          </View>
-        )}
+          )}
+        </View>
       </KeyboardAvoidingView>
+
+      {/* Magic wand intro: what it does, over a blurred screen; the button in the middle runs it. */}
+      {wandIntro && (
+        <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(160)} style={styles.intro}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => !lifting && setWandIntro(false)}
+            accessibilityLabel="Close"
+          />
+          <Glass style={styles.introCard}>
+            <Ionicons name="color-wand-outline" size={30} color="#fff" />
+            <AppText style={styles.introTitle}>Magic wand</AppText>
+            <AppText style={styles.introBody}>
+              Finds you in the photo and lifts you to the front, so the route and the text sit behind you, like a
+              magazine cover. Tap the wand again any time to switch it off.
+            </AppText>
+            <Pressable accessibilityRole="button" onPress={runWand} disabled={lifting} style={styles.introGo}>
+              {lifting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Ionicons name="sparkles-outline" size={16} color="#fff" />
+              )}
+              <AppText style={styles.introGoText}>{lifting ? 'Finding you…' : 'Lift me out'}</AppText>
+            </Pressable>
+            {!lifting && (
+              <Pressable accessibilityRole="button" onPress={() => setWandIntro(false)} hitSlop={8}>
+                <AppText style={styles.introLater}>Not now</AppText>
+              </Pressable>
+            )}
+          </Glass>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -744,49 +819,26 @@ function BleedMask({
 }
 
 function Input(props: React.ComponentProps<typeof TextInput>) {
-  return <TextInput placeholderTextColor={Colors.textMuted} {...props} style={[styles.input, props.style]} />;
+  return <TextInput placeholderTextColor="rgba(255,255,255,0.6)" {...props} style={[styles.input, props.style]} />;
 }
 
-function Swatch({
-  label,
-  selected,
-  onPress,
-  fill,
-  line,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-  fill: string;
-  line: string;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={() => {
-        tap();
-        onPress();
-      }}
-      style={styles.swatch}>
-      <View style={[styles.swatchTile, { backgroundColor: fill }, selected && styles.swatchSelected]}>
-        <View style={[styles.swatchRoute, { borderColor: line }]} />
-      </View>
-      <AppText style={[styles.swatchLabel, selected && { color: Colors.text }]}>{label}</AppText>
-    </Pressable>
-  );
-}
+const blur = Platform.OS === 'web' ? { backdropFilter: 'blur(24px) saturate(1.3)' } : null;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   // minWidth 0 lets inputs share a row (web inputs otherwise keep a default width).
   flex: { flex: 1, minWidth: 0 },
+  center: { alignItems: 'center' },
   frame: { position: 'absolute', pointerEvents: 'box-none' },
+  uploadLayer: { position: 'absolute' },
   back: { position: 'absolute', left: Spacing.two, padding: Spacing.one },
   rail: { position: 'absolute', right: Spacing.three },
   shadow: { textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  bottomBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingHorizontal: Spacing.three },
+  controls: { paddingHorizontal: Spacing.three, gap: Spacing.three },
+  messageRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  message: { flex: 1 },
+  bottomBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   hint: { flex: 1 },
   nextButton: {
     backgroundColor: Colors.accent,
@@ -795,53 +847,53 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   nextLabel: { color: Colors.accentText, fontWeight: '700', fontSize: 16 },
-  // See-through: the design stays visible behind the controls.
-  sheet: { backgroundColor: 'rgba(10,10,11,0.72)' },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.three,
-    paddingBottom: Spacing.one,
-  },
-  sheetTitle: { fontWeight: '700', fontSize: 16 },
-  done: { color: Colors.accent, fontWeight: '700', fontSize: 16 },
-  panelContent: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, gap: Spacing.two },
-  textBar: { paddingHorizontal: Spacing.three, gap: Spacing.two },
-  swatchRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
-  inkDot: { width: 30, height: 30, borderRadius: 15, borderWidth: 2 },
-  inkDotSelected: { transform: [{ scale: 1.2 }], borderWidth: 3 },
-  textDone: { marginLeft: 'auto' },
-  // Kept on screen (mobile browsers won't open the keyboard for hidden inputs) but invisible.
-  hiddenInput: { position: 'absolute', left: 0, top: 0, width: 1, height: 1, opacity: 0.01, fontSize: 16 },
-  notice: { paddingVertical: Spacing.one },
-  noticeText: { color: Colors.accent, fontWeight: '600' },
+  done: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  card: { padding: Spacing.three, gap: Spacing.two },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  inputRow: { flexDirection: 'row', gap: Spacing.two },
+  runnerTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  runnerTabOn: { backgroundColor: 'rgba(255,255,255,0.4)' },
+  runnerTabText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    color: Colors.text,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.3)',
+    color: '#fff',
     paddingHorizontal: Spacing.three,
     height: 44,
     fontSize: 16,
   },
-  colour: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: Colors.border },
-  colourSelected: { borderColor: Colors.text, transform: [{ scale: 1.12 }] },
-  swatch: { alignItems: 'center', gap: 4 },
-  swatchTile: {
-    width: 52,
-    height: 52,
-    borderRadius: Radius.sm,
-    borderWidth: 2,
-    borderColor: 'transparent',
+  // Kept on screen (mobile browsers won't open the keyboard for hidden inputs) but invisible.
+  hiddenInput: { position: 'absolute', left: 0, top: 0, width: 1, height: 1, opacity: 0.01, fontSize: 16 },
+  intro: {
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    padding: Spacing.four,
+    ...blur,
   },
-  swatchSelected: { borderColor: Colors.text },
-  swatchRoute: { width: 26, height: 18, borderRadius: 9, borderWidth: 2.5 },
-  swatchLabel: { fontSize: 11, color: Colors.textMuted },
+  introCard: { width: '100%', maxWidth: 360, padding: Spacing.four, gap: Spacing.three, alignItems: 'center' },
+  introTitle: { color: '#fff', fontSize: 22, fontWeight: '700' },
+  introBody: { color: 'rgba(255,255,255,0.88)', textAlign: 'center', lineHeight: 21 },
+  introGo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    height: 46,
+    paddingLeft: 18,
+    paddingRight: 22,
+    borderRadius: 23,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.45)',
+    marginTop: Spacing.two,
+  },
+  introGoText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  introLater: { color: 'rgba(255,255,255,0.7)', fontSize: 14 },
 });

@@ -1,13 +1,15 @@
 /**
  * Direct text editing on the poster. In edit mode every editable piece of text
- * shows a small pencil badge; tapping it starts editing that field (the editor
- * focuses a hidden input, so only the keyboard appears and the poster text
- * updates as you type). Outside edit mode this renders just its children.
+ * shows a small pencil badge, and the text itself is tappable too; either starts
+ * editing that field. The field blanks out (a fresh start, with a blinking caret),
+ * the editor focuses a hidden input so only the keyboard appears, and the poster
+ * text updates as you type. Outside edit mode this renders just its children.
  */
 
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type FlexAlignType } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
 /** A text field on the poster. `location` is "City, Country" in one line. */
 export type TextField =
@@ -21,9 +23,20 @@ export type TextField =
   | `bib:${number}`
   | `time:${number}`;
 
-type EditableState = { editing: boolean; active: TextField | null; onEdit: (field: TextField) => void };
+type EditableState = {
+  editing: boolean;
+  active: TextField | null;
+  /** Nothing typed yet in the active field: hide its placeholder, show just the caret. */
+  activeEmpty: boolean;
+  onEdit: (field: TextField) => void;
+};
 
-export const EditableContext = createContext<EditableState>({ editing: false, active: null, onEdit: () => {} });
+export const EditableContext = createContext<EditableState>({
+  editing: false,
+  active: null,
+  activeEmpty: false,
+  onEdit: () => {},
+});
 
 export function useEditing() {
   return useContext(EditableContext).editing;
@@ -45,11 +58,19 @@ export function Editable({
   badge?: boolean;
   children: ReactNode;
 }) {
-  const { editing, active, onEdit } = useContext(EditableContext);
+  const { editing, active, activeEmpty, onEdit } = useContext(EditableContext);
+  const isActive = editing && active === field;
   return (
-    <View style={[styles.wrap, { alignSelf: align }]}>
-      {children}
-      {editing && active === field && <View style={styles.outline} />}
+    <Pressable
+      // The text itself is a tap target in edit mode, not just the badge.
+      disabled={!editing}
+      accessibilityRole={editing ? 'button' : undefined}
+      onPress={() => onEdit(field)}
+      style={[styles.wrap, { alignSelf: align }]}>
+      {/* Kept in the layout (so nothing shifts) but hidden while the field is blank. */}
+      <View style={isActive && activeEmpty ? styles.hidden : undefined}>{children}</View>
+      {isActive && <View style={styles.outline} />}
+      {isActive && activeEmpty && <Caret align={align} />}
       {editing && badge && (
         <Pressable
           accessibilityRole="button"
@@ -60,12 +81,25 @@ export function Editable({
           <Ionicons name="pencil" size={10} color={active === field ? '#fff' : '#111'} />
         </Pressable>
       )}
-    </View>
+    </Pressable>
   );
+}
+
+/** Blinking caret in a blank field, where the first letter will go. */
+function Caret({ align }: { align: FlexAlignType }) {
+  const opacity = useSharedValue(1);
+  useEffect(() => {
+    opacity.set(withRepeat(withTiming(0, { duration: 520 }), -1, true));
+  }, [opacity]);
+  const style = useAnimatedStyle(() => ({ opacity: opacity.get() }));
+  const side = align === 'flex-end' ? { right: 0 } : align === 'center' ? { left: '50%' as const } : { left: 0 };
+  return <Animated.View style={[styles.caret, side, style]} />;
 }
 
 const styles = StyleSheet.create({
   wrap: { maxWidth: '100%' },
+  hidden: { opacity: 0 },
+  caret: { position: 'absolute', top: '12%', bottom: '12%', width: 2, borderRadius: 1, backgroundColor: '#F5A623' },
   outline: {
     position: 'absolute',
     top: -3,

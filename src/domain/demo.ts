@@ -106,21 +106,33 @@ export function demoDocument(designId: string, runnerCount: RunnerCount): Design
  * they haven't added yet, so the design looks like its gallery preview from the start.
  * Display only. The real document (and the Next checks) never contain samples.
  */
-export function withSamples(doc: DesignDocument): { doc: DesignDocument; usingSamples: boolean } {
+export function withSamples(
+  doc: DesignDocument,
+  /**
+   * A text field being edited ("title", "name:0", "location"…): it gets no sample, so
+   * it reads blank while the user types into it.
+   */
+  editing?: string | null,
+): { doc: DesignDocument; usingSamples: boolean } {
   const demo = demoDocument(doc.designId, doc.runners.length as RunnerCount);
-  const pick = (value: string, sample: string) => (value.trim() ? value : sample);
+  const [field, index] = (editing ?? '').split(':');
+  const skip = (key: string, i?: number) =>
+    (field === key && (i === undefined || Number(index) === i)) ||
+    (field === 'location' && (key === 'city' || key === 'country'));
+  const pick = (value: string, sample: string, key: string, i?: number) =>
+    value.trim() || skip(key, i) ? value : sample;
   const text = {
-    title: pick(doc.text.title, demo.text.title),
-    date: pick(doc.text.date, demo.text.date),
-    city: pick(doc.text.city, demo.text.city),
-    country: pick(doc.text.country, demo.text.country),
+    title: pick(doc.text.title, demo.text.title, 'title'),
+    date: pick(doc.text.date, demo.text.date, 'date'),
+    city: pick(doc.text.city, demo.text.city, 'city'),
+    country: pick(doc.text.country, demo.text.country, 'country'),
   };
   const runners = doc.runners.map((r, i) => ({
     ...r,
-    name: pick(r.name, demo.runners[i].name),
-    bib: r.bib?.trim() ? r.bib : demo.runners[i].bib,
-    timeSeconds: r.timeSeconds ?? demo.runners[i].timeSeconds,
-    distanceKm: i === 0 ? (r.distanceKm ?? 42.2) : r.distanceKm,
+    name: pick(r.name, demo.runners[i].name, 'name', i),
+    bib: r.bib?.trim() || skip('bib', i) ? r.bib : demo.runners[i].bib,
+    timeSeconds: r.timeSeconds ?? (skip('time', i) ? undefined : demo.runners[i].timeSeconds),
+    distanceKm: i === 0 ? (r.distanceKm ?? (skip('distance') ? undefined : 42.2)) : r.distanceKm,
   }));
   const route = { ...doc.route, points: doc.route.points ?? DEMO_ROUTE, geo: doc.route.geo ?? DEMO_GEO };
   const usingSamples =
