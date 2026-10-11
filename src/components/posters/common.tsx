@@ -10,6 +10,8 @@ import { StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type Vi
 import type { DesignDocument } from '@/domain/design-document';
 import { formatDateDots, formatDateLong, formatDuration, formatPace, monthName, parseRaceDate } from '@/domain/race';
 
+import { useEditing } from './editable';
+
 /** Font families, loaded in the root layout. Keys match `useFonts` in src/app/_layout.tsx. */
 export const PosterFonts = {
   condensed: 'BarlowCondensed_500Medium',
@@ -68,9 +70,15 @@ export function alpha(hex: string, opacity: number): string {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${opacity})`;
 }
 
-/** Text layer over a full-bleed canvas. Touches pass through to the canvas below. */
+/**
+ * Text layer over a full-bleed canvas. Touches pass through to the canvas below,
+ * except in text edit mode, when the pencil badges on the text need them.
+ */
 export function Overlay({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <View style={[StyleSheet.absoluteFill, styles.passThrough, style]}>{children}</View>;
+  const editing = useEditing();
+  return (
+    <View style={[StyleSheet.absoluteFill, editing ? styles.boxNone : styles.passThrough, style]}>{children}</View>
+  );
 }
 
 /**
@@ -132,6 +140,7 @@ const styles = StyleSheet.create({
   // box-none: the sheet itself never takes touches, so gestures reach the canvas.
   sheet: { width: '100%', overflow: 'hidden', pointerEvents: 'box-none' },
   passThrough: { pointerEvents: 'none' },
+  boxNone: { pointerEvents: 'box-none' },
   footnote: {
     position: 'absolute',
     right: 0,

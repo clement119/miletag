@@ -10,6 +10,7 @@
     "@expo/vector-icons": "^15.0.2",
     "@maplibre/maplibre-gl-style-spec": "^26.4.4",
     "@maplibre/maplibre-react-native": "^11.5.0",
+    "@mediapipe/tasks-vision": "1.0.1",
     "@shopify/react-native-skia": "2.6.2",
     "expo": "~57.0.27",
     "expo-constants": "~57.0.21",

@@ -19,7 +19,7 @@ import {
   useImage,
   vec,
 } from '@shopify/react-native-skia';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useDerivedValue, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -65,6 +65,10 @@ export type RouteCanvasProps = {
    * screen. Defaults to the whole canvas.
    */
   frame?: { x: number; y: number; width: number; height: number };
+  /** Magic wand: the lifted subject (transparent PNG, same framing as the photo), drawn on top of `between`. */
+  subjectUri?: string | null;
+  /** Layer between the photo/route and the lifted subject: the design's text. */
+  between?: ReactNode;
 };
 
 const MIN_SCALE = 0.15;
@@ -72,6 +76,19 @@ const MAX_SCALE = 1.6;
 const GRID_LINES = 12;
 /** Route line width as a fraction of the canvas width. */
 const ROUTE_STROKE = 0.008;
+
+/**
+ * Colour matrix for the lifted subject: it sits above the photo's darken layer, so
+ * it gets the same darkening (and black-and-white) applied directly.
+ */
+function subjectMatrix(mono: boolean, scrim: number): number[] {
+  const k = 1 - scrim;
+  const row = (r: number, g: number, b: number) => [r * k, g * k, b * k, 0, 0];
+  const grey = row(0.2126, 0.7152, 0.0722);
+  return mono
+    ? [...grey, ...grey, ...grey, 0, 0, 0, 1, 0]
+    : [...row(1, 0, 0), ...row(0, 1, 0), ...row(0, 0, 1), 0, 0, 0, 1, 0];
+}
 
 // Rec. 709 luminance, for the black-and-white option.
 const GREYSCALE = [
@@ -92,7 +109,10 @@ export default function RouteCanvas({
   interactive = true,
   size: fixedSize,
   frame,
+  subjectUri,
+  between,
 }: RouteCanvasProps) {
+  const subject = useImage(subjectUri ?? null);
   const [measured, setMeasured] = useState({ width: 0, height: 0 });
   const { width, height } = fixedSize ?? measured;
   // Everything is laid out relative to the print area (fx, fy, fw, fh).
@@ -313,8 +333,22 @@ export default function RouteCanvas({
   return (
     <View onLayout={onLayout} style={fixedSize ?? styles.wrapper}>
       {width > 0 && (interactive ? <GestureDetector gesture={gesture}>{canvas}</GestureDetector> : canvas)}
+      {between}
+      {subject && width > 0 && (
+        // Above the text; touches fall through to the photo canvas.
+        <View style={[StyleSheet.absoluteFill, styles.passThrough]}>
+          <Canvas style={{ width, height }}>
+            <Image image={subject} x={photoX} y={photoY} width={photoW} height={photoH} fit="fill">
+              <ColorMatrix matrix={subjectMatrix(!!photo?.mono, photo?.scrim ?? 0)} />
+            </Image>
+          </Canvas>
+        </View>
+      )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({ wrapper: { width: '100%', overflow: 'hidden' } });
+const styles = StyleSheet.create({
+  wrapper: { width: '100%', overflow: 'hidden' },
+  passThrough: { pointerEvents: 'none' },
+});

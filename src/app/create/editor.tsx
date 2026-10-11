@@ -9,7 +9,7 @@
 
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Redirect, router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -27,6 +27,7 @@ import { ToolRail, type ToolItem } from '@/components/editor/tool-bar';
 import { MapCanvas } from '@/components/map-canvas';
 import { GRADE_COLOUR, getPhotoQuality, PhotoQualityNotice } from '@/components/photo-quality';
 import { canvasAspect, Poster } from '@/components/posters';
+import { EditableContext, type TextField } from '@/components/posters/editable';
 import { RouteCanvas } from '@/components/route-canvas';
 import { AppText, Button, Chip, tap } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
@@ -35,6 +36,7 @@ import { switchBackground, type Background } from '@/domain/design-document';
 import { getLook, hasLayout } from '@/domain/design-looks';
 import { DEMO_PHOTO, withSamples } from '@/domain/demo';
 import { pickPhoto } from '@/domain/import-photo';
+import { LiftUnavailableError, liftSubject } from '@/domain/lift-subject';
 import { getMapStyle, MAP_ATTRIBUTION, MAP_STYLES, type MapLayerToggles, type MapStyleId } from '@/domain/map-styles';
 import { DEFAULT_PHOTO_CROP, SCRIM_LEVELS } from '@/domain/photo';
 import { formatDuration, parseDuration } from '@/domain/race';
@@ -42,7 +44,9 @@ import { GpxParseError } from '@/domain/route/gpx';
 import { pickGpxRoute } from '@/domain/route/import-gpx';
 import { useDesign } from '@/state/design-store';
 
-type ToolId = 'background' | 'adjust' | 'layers' | 'route' | 'race' | 'runner' | 'colour' | 'quality';
+/** 'text' is a mode, not a sheet: pencil badges on the poster, colours along the bottom. */
+/** 'wand' is an on/off switch: lifts the photo's subject above the text. */
+type ToolId = 'background' | 'adjust' | 'layers' | 'route' | 'text' | 'runner' | 'wand' | 'quality';
 
 const ROUTE_COLOURS = ['#F5A623', '#E4572E', '#E4FF1A', '#FFFFFF', '#111111', '#2F80ED'];
 /** Height of the toolkit sheet when a tool is open. */
@@ -55,6 +59,11 @@ export default function Editor() {
   const [tool, setTool] = useState<ToolId | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [timeText, setTimeText] = useState<Record<number, string>>({});
+  // Direct text editing: the field being edited and what's typed so far.
+  const [editField, setEditField] = useState<TextField | null>(null);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<TextInput>(null);
+  const [lifting, setLifting] = useState(false);
   const [adjust, setAdjust] = useState<'photo' | 'route'>('photo');
   const [runnerIndex, setRunnerIndex] = useState(0);
   const window = useWindowDimensions();
@@ -80,7 +89,7 @@ export default function Editor() {
   // With a toolkit open it fits in the space above it. Sized from the window, never onLayout.
   const screenW = window.width;
   const screenH = window.height;
-  const sheetOpen = tool !== null;
+  const sheetOpen = tool !== null && tool !== 'text';
   const top = sheetOpen ? insets.top + Spacing.two : 0;
   const room = sheetOpen ? screenH - SHEET_HEIGHT - insets.bottom - top - Spacing.two : screenH;
   const frameW = Math.max(120, Math.min(screenW, room * aspect));
@@ -95,9 +104,19 @@ export default function Editor() {
       ? { id: 'adjust', label: 'Adjust', icon: 'options-outline' }
       : { id: 'layers', label: 'Layers', icon: 'layers-outline' },
     { id: 'route', label: 'Route', icon: 'navigate-outline', dot: doc.route.geo ? undefined : Colors.accent },
-    { id: 'race', label: 'Race', icon: 'text-outline' },
+    { id: 'text', label: 'Edit text', icon: 'text-outline' },
     { id: 'runner', label: doc.runners.length > 1 ? 'Runners' : 'Runner', icon: 'person-outline' },
-    { id: 'colour', label: 'Text colour', icon: 'color-palette-outline' },
+    // Magic wand: only where text sits over the photo.
+    ...(fullBleed && bg.type === 'photo'
+      ? [
+          {
+            id: 'wand' as const,
+            label: 'Magic wand: put text behind the subject',
+            icon: lifting ? ('hourglass-outline' as const) : ('color-wand-outline' as const),
+            on: !!bg.cutout?.enabled,
+          },
+        ]
+      : []),
     ...(quality
       ? [
           {
@@ -111,8 +130,17 @@ export default function Editor() {
   ];
   // The Adjust/Layers/Quality tools come and go with the background.
   const activeTool = tools.some((t) => t.id === tool) ? tool : null;
+  const textMode = activeTool === 'text';
 
   const openTool = (id: ToolId | null) => {
+    if (id === 'wand') {
+      toggleWand();
+      return;
+    }
+    if (id !== 'text') {
+      inputRef.current?.blur();
+      setEditField(null);
+    }
     setNotice(null);
     setTool(id);
   };
@@ -155,7 +183,11 @@ export default function Editor() {
       setAdjust('photo');
       update((d) =>
         d.background.type === 'photo'
-          ? { ...d, background: { ...d.background, photo, crop: { ...DEFAULT_PHOTO_CROP }, lowResAckDpi: null } }
+          ? {
+              ...d,
+              // A new photo starts fresh: no crop, no low-res OK, no lifted subject.
+              background: { ...d.background, photo, crop: { ...DEFAULT_PHOTO_CROP }, lowResAckDpi: null, cutout: null },
+            }
           : d,
       );
     } catch {
@@ -190,20 +222,130 @@ export default function Editor() {
   const setRunner = (index: number, patch: Partial<(typeof doc.runners)[number]>) =>
     update((d) => ({ ...d, runners: d.runners.map((r, i) => (i === index ? { ...r, ...patch } : r)) }));
 
+  // ---- Magic wand ----------------------------------------------------------
+
+  /** Lifts the subject above the text (first tap detects it; later taps switch it on/off). */
+  const toggleWand = async () => {
+    if (bg.type !== 'photo' || lifting) return;
+    setNotice(null);
+    if (bg.cutout) {
+      setPhotoOptions({ cutout: { ...bg.cutout, enabled: !bg.cutout.enabled } });
+      return;
+    }
+    if (!bg.photo) {
+      setTool('background');
+      setNotice('Choose your photo first, then tap the wand.');
+      return;
+    }
+    setLifting(true);
+    try {
+      const cutout = await liftSubject(bg.photo.previewUri);
+      if (cutout) setPhotoOptions({ cutout: { ...cutout, enabled: true } });
+      else setNotice('Couldn’t find a person or object to lift in this photo.');
+    } catch (e) {
+      setNotice(
+        e instanceof LiftUnavailableError
+          ? e.message
+          : 'The magic wand couldn’t run. Check your connection and try again.',
+      );
+    } finally {
+      setLifting(false);
+    }
+  };
+
+  // ---- Direct text editing -------------------------------------------------
+
+  /** The real value of a field (never a sample), as the user types it. */
+  const fieldValue = (field: TextField): string => {
+    const [key, index] = field.split(':');
+    const runner = doc.runners[Number(index) || 0];
+    switch (key) {
+      case 'title':
+      case 'date':
+      case 'city':
+      case 'country':
+        return doc.text[key];
+      case 'location':
+        return [doc.text.city, doc.text.country].filter(Boolean).join(', ');
+      case 'distance':
+        return doc.runners[0]?.distanceKm ? String(doc.runners[0].distanceKm) : '';
+      case 'name':
+        return runner?.name ?? '';
+      case 'bib':
+        return runner?.bib ?? '';
+      case 'time':
+        return runner?.timeSeconds ? formatDuration(runner.timeSeconds) : '';
+      default:
+        return '';
+    }
+  };
+
+  const setFieldValue = (field: TextField, value: string) => {
+    const [key, index] = field.split(':');
+    const i = Number(index) || 0;
+    switch (key) {
+      case 'title':
+      case 'date':
+      case 'city':
+      case 'country':
+        return setText({ [key]: value });
+      case 'location': {
+        // "City, Country": everything after the first comma is the country.
+        const [city, ...rest] = value.split(',');
+        return setText({ city: city.trim(), country: rest.join(',').trim() });
+      }
+      case 'distance': {
+        const km = parseFloat(value.replace(/[^\d.]/g, ''));
+        return setRunner(0, { distanceKm: km > 0 ? km : undefined });
+      }
+      case 'name':
+        return setRunner(i, { name: value });
+      case 'bib':
+        return setRunner(i, { bib: value.replace(/^#/, '') });
+      case 'time': {
+        setTimeText((t) => ({ ...t, [i]: value }));
+        const seconds = parseDuration(value);
+        if (seconds !== undefined) setRunner(i, { timeSeconds: seconds });
+        return;
+      }
+    }
+  };
+
+  /**
+   * Starts editing a field: focuses the hidden input so only the keyboard appears and
+   * the poster text updates as you type. Called straight from a tap, so mobile
+   * browsers allow the keyboard to open.
+   */
+  const beginEdit = (field: TextField) => {
+    setTool('text');
+    setEditField(field);
+    setDraft(fieldValue(field));
+    inputRef.current?.focus();
+  };
+
+  const keyboardFor = (field: TextField | null) =>
+    field === 'distance' ? 'decimal-pad' : field?.startsWith('time') ? 'numbers-and-punctuation' : 'default';
+
   // Next never sits greyed out: it opens whichever tool fixes what's missing.
   const next = () => {
     // Every design prints each runner's name and time.
-    const firstRunner = doc.runners.findIndex((r) => r.name.trim() === '' || !r.timeSeconds);
+    const missingName = doc.runners.findIndex((r) => r.name.trim() === '');
+    const missingTime = doc.runners.findIndex((r) => !r.timeSeconds);
     if (!doc.route.geo) {
       setTool('route');
       setNotice('Add your GPX route first.');
-    } else if (!doc.text.title.trim() || !doc.text.date.trim()) {
-      setTool('race');
-      setNotice('Add the race name and date. They print on the poster.');
-    } else if (firstRunner >= 0) {
-      setTool('runner');
-      setRunnerIndex(firstRunner);
-      setNotice('Add the name and chip time. They print on the poster.');
+    } else if (!doc.text.title.trim()) {
+      setNotice('Add the race name. It prints on the poster.');
+      beginEdit('title');
+    } else if (!doc.text.date.trim()) {
+      setNotice('Add the race date. It prints on the poster.');
+      beginEdit('date');
+    } else if (missingName >= 0) {
+      setNotice('Add the runner’s name. It prints on the poster.');
+      beginEdit(`name:${missingName}`);
+    } else if (missingTime >= 0) {
+      setNotice('Add the chip time, like 3:41:09. It prints on the poster.');
+      beginEdit(`time:${missingTime}`);
     } else if (bg.type === 'photo' && !bg.photo) {
       setTool('background');
       setNotice('Choose a photo, or switch to Map.');
@@ -216,6 +358,23 @@ export default function Editor() {
   };
 
   // ---- Poster --------------------------------------------------------------
+
+  /**
+   * The design's layout, exactly as it prints, on the print area. Full-bleed layouts get
+   * no canvas child (the canvas fills the screen behind them); paper layouts hold it.
+   * A function so the full-bleed canvas can take it as its `between` layer.
+   */
+  function printLayer(child?: React.ReactNode) {
+    return (
+      <EditableContext.Provider value={{ editing: textMode, active: editField, onEdit: beginEdit }}>
+        <View style={[styles.frame, { left: frame.x, top: frame.y, width: frame.width }]}>
+          <Poster doc={display.doc} aspectRatio={aspect} footnote={bg.type === 'map' ? MAP_ATTRIBUTION : undefined}>
+            {child}
+          </Poster>
+        </View>
+      </EditableContext.Provider>
+    );
+  }
 
   const photoForCanvas =
     bg.type === 'photo'
@@ -261,15 +420,12 @@ export default function Editor() {
         photo={photoForCanvas}
         onPhotoCropEnd={(crop) => setPhotoOptions({ crop })}
         adjust={adjust}
+        subjectUri={bg.type === 'photo' && bg.cutout?.enabled ? bg.cutout.uri : null}
+        between={fullBleed ? printLayer() : undefined}
       />
     );
 
   // Full-bleed layouts get no canvas child: they render just their text, transparent, over the frame.
-  const poster = (
-    <Poster doc={display.doc} aspectRatio={aspect} footnote={bg.type === 'map' ? MAP_ATTRIBUTION : undefined}>
-      {fullBleed ? undefined : canvas}
-    </Poster>
-  );
 
   const hint =
     bg.type === 'map'
@@ -383,36 +539,6 @@ export default function Editor() {
         </View>
       </>
     ),
-    race: () => (
-      <>
-        <Input
-          placeholder="Race name, e.g. KL Marathon"
-          value={doc.text.title}
-          onChangeText={(title) => setText({ title })}
-        />
-        <View style={styles.inputRow}>
-          <Input
-            placeholder="Date"
-            value={doc.text.date}
-            onChangeText={(date) => setText({ date })}
-            style={styles.flex}
-          />
-          <Input
-            placeholder="City"
-            value={doc.text.city}
-            onChangeText={(city) => setText({ city })}
-            style={styles.flex}
-          />
-          <Input
-            placeholder="Country"
-            value={doc.text.country}
-            onChangeText={(country) => setText({ country })}
-            style={styles.flex}
-          />
-        </View>
-        <AppText variant="caption">Date like 5 October 2026 or 05/10/2026. City and country are optional.</AppText>
-      </>
-    ),
     runner: () => {
       const i = Math.min(runnerIndex, doc.runners.length - 1);
       const runner = doc.runners[i];
@@ -453,30 +579,10 @@ export default function Editor() {
         </>
       );
     },
-    colour: () => (
-      <>
-        <AppText variant="caption">Recommended for {design?.name}</AppText>
-        <View style={styles.row}>
-          {look.inks.map((ink) => (
-            <Pressable
-              key={ink.hex}
-              accessibilityRole="button"
-              accessibilityLabel={`Text colour ${ink.name}`}
-              accessibilityState={{ selected: doc.ink === ink.hex }}
-              onPress={() => {
-                tap();
-                update((d) => ({ ...d, ink: ink.hex }));
-              }}
-              style={styles.inkOption}>
-              <View
-                style={[styles.colour, { backgroundColor: ink.hex }, doc.ink === ink.hex && styles.colourSelected]}
-              />
-              <AppText style={styles.inkLabel}>{ink.name}</AppText>
-            </Pressable>
-          ))}
-        </View>
-      </>
-    ),
+    // Text editing happens on the poster itself; no sheet.
+    text: () => null,
+    // The wand is a switch on the rail, not a sheet.
+    wand: () => null,
     quality: () => <PhotoQualityNotice doc={doc} onAcknowledge={(lowResAckDpi) => setPhotoOptions({ lowResAckDpi })} />,
   };
 
@@ -495,8 +601,26 @@ export default function Editor() {
         </>
       )}
 
-      {/* The print area: the design's layout, exactly as it prints. */}
-      <View style={[styles.frame, { left: frame.x, top: frame.y, width: frame.width }]}>{poster}</View>
+      {/* The print area. Over a full-bleed photo it's drawn inside the canvas, under the lifted subject. */}
+      {fullBleed ? bg.type === 'map' && printLayer() : printLayer(canvas)}
+
+      {/* Hidden input behind direct text editing: only the keyboard shows; the poster is the text box. */}
+      <TextInput
+        ref={inputRef}
+        value={draft}
+        onChangeText={(value) => {
+          setDraft(value);
+          if (editField) setFieldValue(editField, value);
+        }}
+        onBlur={() => setEditField(null)}
+        onSubmitEditing={() => inputRef.current?.blur()}
+        returnKeyType="done"
+        keyboardType={keyboardFor(editField)}
+        autoCapitalize={editField === 'title' || editField?.startsWith('name') ? 'words' : 'sentences'}
+        autoCorrect={false}
+        style={styles.hiddenInput}
+        accessibilityLabel={editField ? `Editing ${editField.split(':')[0]}` : 'Poster text'}
+      />
 
       {/* See-through overlays. */}
       <Pressable
@@ -519,7 +643,40 @@ export default function Editor() {
         style={styles.bottom}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         pointerEvents="box-none">
-        {activeTool ? (
+        {textMode ? (
+          // Text mode: colours straight on the poster, no tray.
+          <View style={[styles.textBar, { paddingBottom: insets.bottom + Spacing.three }]} pointerEvents="box-none">
+            <AppText
+              variant="caption"
+              style={[{ color: notice ? Colors.accent : iconColour }, tone === 'light' && styles.shadow]}
+              numberOfLines={2}>
+              {notice ?? 'Tap a ✎ to edit that text. Pick a colour below.'}
+            </AppText>
+            <View style={styles.swatchRow} pointerEvents="box-none">
+              {look.inks.map((ink) => (
+                <Pressable
+                  key={ink.hex}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Text colour ${ink.name}`}
+                  accessibilityState={{ selected: doc.ink === ink.hex }}
+                  hitSlop={6}
+                  onPress={() => {
+                    tap();
+                    update((d) => ({ ...d, ink: ink.hex }));
+                  }}
+                  style={[
+                    styles.inkDot,
+                    { backgroundColor: ink.hex, borderColor: iconColour },
+                    doc.ink === ink.hex && styles.inkDotSelected,
+                  ]}
+                />
+              ))}
+              <Pressable accessibilityRole="button" onPress={() => openTool(null)} hitSlop={10} style={styles.textDone}>
+                <AppText style={[styles.done, tone === 'light' && styles.shadow]}>Done</AppText>
+              </Pressable>
+            </View>
+          </View>
+        ) : activeTool ? (
           <View style={[styles.sheet, { height: SHEET_HEIGHT + insets.bottom, paddingBottom: insets.bottom }]}>
             <View style={styles.sheetHeader}>
               <AppText style={styles.sheetTitle}>{toolTitle}</AppText>
@@ -542,7 +699,7 @@ export default function Editor() {
               variant="caption"
               style={[styles.hint, { color: iconColour }, tone === 'light' && styles.shadow]}
               numberOfLines={2}>
-              {hintText}
+              {notice ?? hintText}
             </AppText>
             <Pressable accessibilityRole="button" onPress={next} style={styles.nextButton}>
               <AppText style={styles.nextLabel}>Next</AppText>
@@ -651,8 +808,13 @@ const styles = StyleSheet.create({
   sheetTitle: { fontWeight: '700', fontSize: 16 },
   done: { color: Colors.accent, fontWeight: '700', fontSize: 16 },
   panelContent: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, gap: Spacing.two },
-  inkOption: { alignItems: 'center', gap: 4 },
-  inkLabel: { fontSize: 11, color: Colors.textSecondary },
+  textBar: { paddingHorizontal: Spacing.three, gap: Spacing.two },
+  swatchRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  inkDot: { width: 30, height: 30, borderRadius: 15, borderWidth: 2 },
+  inkDotSelected: { transform: [{ scale: 1.2 }], borderWidth: 3 },
+  textDone: { marginLeft: 'auto' },
+  // Kept on screen (mobile browsers won't open the keyboard for hidden inputs) but invisible.
+  hiddenInput: { position: 'absolute', left: 0, top: 0, width: 1, height: 1, opacity: 0.01, fontSize: 16 },
   notice: { paddingVertical: Spacing.one },
   noticeText: { color: Colors.accent, fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },

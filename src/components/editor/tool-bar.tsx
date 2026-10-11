@@ -16,6 +16,8 @@ export type ToolItem<T extends string> = {
   icon: ComponentProps<typeof Ionicons>['name'];
   /** Small status dot, e.g. the print-quality traffic light. */
   dot?: string;
+  /** Shown as selected regardless of the open tool (an on/off tool like the magic wand). */
+  on?: boolean;
 };
 
 type Props<T extends string> = {
@@ -33,7 +35,7 @@ export function ToolRail<T extends string>({ tools, value, onChange, tone = 'lig
   return (
     <View style={[styles.rail, style]} accessibilityRole="tablist">
       {tools.map((tool) => {
-        const selected = tool.id === value;
+        const selected = tool.id === value || !!tool.on;
         return (
           <Pressable
             key={tool.id}
@@ -43,7 +45,7 @@ export function ToolRail<T extends string>({ tools, value, onChange, tone = 'lig
             hitSlop={6}
             onPress={() => {
               tap();
-              onChange(selected ? null : tool.id);
+              onChange(tool.id === value ? null : tool.id);
             }}
             style={[styles.button, selected && { backgroundColor: ink }]}>
             <Ionicons

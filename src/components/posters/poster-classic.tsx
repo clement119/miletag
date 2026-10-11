@@ -10,6 +10,7 @@ import { getLook } from '@/domain/design-looks';
 import { POSTER_CLASSIC_SQUARE } from '@/domain/photo';
 
 import { alpha, fitFont, PosterFonts, posterData, Sheet, type PosterProps } from './common';
+import { Editable } from './editable';
 
 export function PosterClassic({ doc, aspectRatio, children, footnote }: PosterProps) {
   const p = posterData(doc);
@@ -17,9 +18,9 @@ export function PosterClassic({ doc, aspectRatio, children, footnote }: PosterPr
   const ink = { color: doc.ink };
   const muted = { color: alpha(doc.ink, 0.72) };
   const stats = [
-    { value: p.distanceKm ? p.distanceKm.toFixed(2) : '0.00', label: 'KM' },
-    { value: runner.time, label: 'TIME' },
-    { value: runner.pace, label: '/KM' },
+    { value: p.distanceKm ? p.distanceKm.toFixed(2) : '0.00', label: 'KM', field: 'distance' as const },
+    { value: runner.time, label: 'TIME', field: 'time:0' as const },
+    { value: runner.pace, label: '/KM', field: undefined },
   ];
 
   return (
@@ -27,21 +28,26 @@ export function PosterClassic({ doc, aspectRatio, children, footnote }: PosterPr
       {(w) => {
         const margin = w * ((1 - POSTER_CLASSIC_SQUARE) / 2);
         const inner = POSTER_CLASSIC_SQUARE;
-        const nameLine = `${runner.name}${runner.bib ? ` #${runner.bib}` : ''}`;
+        const nameLine = `${runner.name}${runner.bib ? `#${runner.bib}` : ''}`;
+        const nameSize = fitFont(nameLine, 0.05, inner * 0.75, 0.5) * w;
         return (
           <View style={[styles.fill, { paddingHorizontal: margin, paddingTop: margin * 0.85 }]}>
-            <Text
-              numberOfLines={1}
-              style={[
-                styles.title,
-                ink,
-                { fontSize: fitFont(p.title, 0.085, inner, 0.5) * w, letterSpacing: w * 0.003 },
-              ]}>
-              {p.title.toUpperCase()}
-            </Text>
-            <Text numberOfLines={1} style={[styles.date, muted, { fontSize: w * 0.034, letterSpacing: w * 0.002 }]}>
-              {p.date.toUpperCase()}
-            </Text>
+            <Editable field="title">
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.title,
+                  ink,
+                  { fontSize: fitFont(p.title, 0.085, inner, 0.5) * w, letterSpacing: w * 0.003 },
+                ]}>
+                {p.title.toUpperCase()}
+              </Text>
+            </Editable>
+            <Editable field="date">
+              <Text numberOfLines={1} style={[styles.date, muted, { fontSize: w * 0.034, letterSpacing: w * 0.002 }]}>
+                {p.date.toUpperCase()}
+              </Text>
+            </Editable>
 
             <View style={[styles.square, { marginTop: w * 0.025 }]}>
               {children}
@@ -56,16 +62,19 @@ export function PosterClassic({ doc, aspectRatio, children, footnote }: PosterPr
             </View>
 
             <View style={[styles.bottom, { paddingBottom: margin * 0.85 }]}>
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.name,
-                  ink,
-                  { fontSize: fitFont(nameLine, 0.05, inner * 0.75, 0.5) * w, letterSpacing: w * 0.002 },
-                ]}>
-                {runner.name.toUpperCase()}
-                {runner.bib ? <Text style={[styles.bib, muted]}>{` #${runner.bib}`}</Text> : null}
-              </Text>
+              {/* Name and bib share one size (set by the combined line) but are edited separately. */}
+              <View style={styles.nameRow}>
+                <Editable field="name:0">
+                  <Text numberOfLines={1} style={[styles.name, ink, { fontSize: nameSize, letterSpacing: w * 0.002 }]}>
+                    {runner.name.toUpperCase()}
+                  </Text>
+                </Editable>
+                <Editable field="bib:0">
+                  <Text numberOfLines={1} style={[styles.bib, muted, { fontSize: nameSize, letterSpacing: w * 0.002, marginLeft: nameSize * 0.3 }]}>
+                    {runner.bib ? `#${runner.bib}` : ''}
+                  </Text>
+                </Editable>
+              </View>
               <View
                 style={[
                   { backgroundColor: doc.ink },
@@ -75,7 +84,13 @@ export function PosterClassic({ doc, aspectRatio, children, footnote }: PosterPr
               <View style={[styles.stats, { gap: w * 0.06 }]}>
                 {stats.map((s) => (
                   <View key={s.label} style={styles.stat}>
-                    <Text style={[styles.statValue, ink, { fontSize: w * 0.045 }]}>{s.value}</Text>
+                    {s.field ? (
+                      <Editable field={s.field} align="center">
+                        <Text style={[styles.statValue, ink, { fontSize: w * 0.045 }]}>{s.value}</Text>
+                      </Editable>
+                    ) : (
+                      <Text style={[styles.statValue, ink, { fontSize: w * 0.045 }]}>{s.value}</Text>
+                    )}
                     <Text style={[styles.statLabel, muted, { fontSize: w * 0.019, letterSpacing: w * 0.002 }]}>
                       {s.label}
                     </Text>
@@ -100,6 +115,7 @@ const styles = StyleSheet.create({
   name: { fontFamily: PosterFonts.condensedBold },
   bib: { fontFamily: PosterFonts.condensed },
   stats: { flexDirection: 'row' },
+  nameRow: { flexDirection: 'row', alignItems: 'baseline' },
   stat: { alignItems: 'center' },
   statValue: { fontFamily: PosterFonts.condensedBold },
   statLabel: { fontFamily: PosterFonts.condensed },

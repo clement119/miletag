@@ -8,6 +8,7 @@ import { getLook } from './design-looks';
 import { DEFAULT_LAYER_TOGGLES, type MapLayerToggles, type MapStyleId } from './map-styles';
 import { DEFAULT_PHOTO_CROP } from './photo';
 import type { PhotoAsset, PhotoCrop } from './photo';
+import type { SubjectCutout } from './subject-cutout';
 import type { LngLat, XY } from './route/geometry';
 
 export const SCHEMA_VERSION = 7;
@@ -43,6 +44,8 @@ export type Background =
       mono: boolean;
       /** The user accepted a low-resolution print at this DPI (or better). */
       lowResAckDpi: number | null;
+      /** Magic wand: the lifted subject, drawn above the text and route. Preview only for now. */
+      cutout: (SubjectCutout & { enabled: boolean }) | null;
     };
 
 export type DesignDocument = {
@@ -106,6 +109,7 @@ export function defaultBackground(designId: string, type: Background['type']): B
         scrim: look.scrim,
         mono: look.mono,
         lowResAckDpi: null,
+        cutout: null,
       };
 }
 
