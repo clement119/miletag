@@ -287,15 +287,15 @@ See §6.2.
 - Opting in shows a **3D preview toggle**: Skia-rendered bevel/shadow on the route, plus a slight parallax on device tilt.
 - **Printable area guard:** the route bounding box must fit within the **3D printer's build plate** (see below). If the user scales the route beyond it, show "Too large for 3D. Scale down or split" (auto-split in v1.1).
 - **Simplification for printability:**
-  - minimum line width (e.g. 2.5 mm)
+  - minimum line width 3 mm
   - minimum turn radius / smoothing on hairpin turns
   - remove tiny loops shorter than about 3 mm
   - previewed as the user will receive it
 
 **Model generation (server, on order lock)**
 1. Take the route polyline in **print millimetres** (from the design document transform).
-2. Smooth, then offset to a ribbon of width *w* (2.5–4 mm, design-dependent).
-3. Extrude to height *h* (2–3 mm flat).
+2. Smooth, then offset to a ribbon of width *w* (3–4 mm, design-dependent).
+3. Extrude to a flat height *h* (2 mm).
 4. Boolean union for self-intersections (use a robust geometry library, e.g. Manifold).
 5. Add **registration tabs/pins** at start and finish.
 6. Export **3MF/STL** + a **1:1 alignment template PDF**.
