@@ -1,11 +1,12 @@
-# Miletag — Product Requirements Document (v0.5)
+# Miletag — Product Requirements Document (v0.6)
 
-> **Status:** Draft v0.5 · **Owner:** Clement · **Date:** 11 Oct 2026
+> **Status:** Draft v0.6 · **Owner:** Clement · **Date:** 11 Oct 2026
 > **Open decisions are marked `⚑ DECISION`.** Each has a recommended default so the build is not blocked.
 
 ### Changelog
 | Version | Change |
 |---|---|
+| v0.6 | **Locked:** 2D prints are made by a **third-party fine-art print shop**; Miletag keeps 3D printing (P2S), framing/assembly, QC and shipping in-house. **A2 = unframed print only** (no Framed, no Deep Frame, so no medal slot and no 3D route). **Medal slot kept on A4.** Bahasa Malaysia = shortly after launch. Crew copies **highlight the buyer's own name**. |
 | v0.5 | **Locked:** sizes **A4, A3, A2**; paper **200 gsm premium matte fine art** with **fade-resistant (pigment) inks**. Added: print spec (§7.9a), per-size limits for 3D and medal, A4 pricing, rigid backing for Deep Frames. |
 | v0.4 | **Locked:** 3D = **flat raised line** only; filament colours = white, black, signal orange, neon yellow, silver, gold; 3D printer = **Bambu Lab P2S** (route area capped to the build plate); **medal designs support 1–6 runners, but each frame still has one medal slot**, so crews each buy their own copy via a **Crew Copy Link**; launch volume = **a few orders per week**, so the Production Console is cut to a lightweight version (capacity throttling, batching and inventory moved to later). |
 | v0.3 | **Locked:** 3D route = raised line 3D-printed from the user's GPX, paid add-on; free export = social sizes only; **Miletag prints in-house** (fine-art prints + 3D routes + framing/assembly); runner count (1–6) is a user selection, **supported only by specific designs**; **one medal, one slot** per medal design; **everything ships in v1**. Product range simplified to 3 frame formats. New P0: **Production Console** (internal ops tool). |
@@ -16,7 +17,7 @@
 
 ## 0. TL;DR
 
-**Miletag turns a race into wall art. Designing and exporting is free; you pay when you want it printed, framed, raised in 3D, or framed with your medal. Miletag produces it all in-house and delivers it.**
+**Miletag turns a race into wall art. Designing and exporting is free; you pay when you want it printed, framed, raised in 3D, or framed with your medal. A partner print shop prints the art; Miletag 3D-prints the route, assembles, checks and delivers.**
 
 - **Free:**
   - live editor and preview
@@ -24,8 +25,8 @@
   - photo or one of 5 curated map backgrounds
   - pick 1–6 runners, where the design supports it
   - social-size export with a small "made with miletag" mark
-- **Paid (physical only, made in-house):**
-  - A4 / A3 / A2 print on 200 gsm premium matte fine-art paper with fade-resistant inks (unframed or framed)
+- **Paid (physical only):**
+  - A4 / A3 / A2 print on 200 gsm premium matte fine-art paper with fade-resistant inks (A4/A3 unframed or framed; A2 unframed only)
   - **Deep Frame** with the optional **3D raised route** (flat, 6 colours) and/or **one medal slot**
   - crews share one design; each member orders their own copy with their own medal
   - delivered to your door
@@ -47,7 +48,7 @@
 | Photo only | No good photo = no product | 5 curated map styles |
 | UK-centric players | Malaysian runners pay international shipping + FX | Made and shipped in Malaysia, priced in MYR |
 
-**Why in-house production is a moat (and a risk):** owning print + 3D + assembly gives you margin, quality control and a product (3D raised route) that print-on-demand (POD) competitors can't easily copy. The cost is capex, capacity limits at race peaks, and an operations team, i.e. you. See §7.10 and §12.
+**Production model (hybrid):** a partner print shop does the 2D fine-art printing (no printer capex, and they hold the colour expertise). Miletag keeps the parts that differentiate the product in-house: the 3D raised route (Bambu Lab P2S), Deep Frame assembly with the medal slot, QC and shipping. The moat is the 3D route + medal assembly + editor, not the paper printing. See §7.9a, §7.10 and §12.
 
 ---
 
@@ -119,7 +120,7 @@ Everything below ships in v1. The P0 list is long, which is why the build estima
 | F15 | Referral codes on exports |
 | F16 | **Production Console (lite)** (internal): order list, file downloads, status updates, courier label |
 | F18 | **Crew Copy Link**: share a crew design so each runner orders their own copy ("this is me" highlight) |
-| F17 | Bahasa Malaysia UI ⚑ (default: P1, English-only launch) |
+| F17 | Bahasa Malaysia UI: **shortly after launch** (locked). v1 strings are externalised (i18n-ready) so BM is a translation job, not a refactor |
 
 ---
 
@@ -150,10 +151,11 @@ Each frame holds **one medal**, so a crew of 4 with 4 medals needs 4 frames. The
 ```
 Crew designer finishes a 2–6 runner design → "Share with crew" → link (WhatsApp / IG)
  → each crew member opens the link (app or web, no edit rights to others' data)
- → taps "This is me" → their name/stat block gets a subtle highlight on THEIR copy ⚑
+ → taps "This is me" → their name/stat block gets a subtle highlight on THEIR copy (locked)
  → enters their medal size (fit check) → picks format / add-ons → pays for their own copy
 ```
 - **Shared:** the design (route, background, layout, all runner names and times) is shared, and **locked once the first copy is paid** so every copy matches. The creator can still fix typos until each copy's production lock.
+- **Highlight style:** the buyer's name and stats are set in the accent colour / bolder weight; everyone else stays in the base colour. Each design defines its own highlight style, so it looks intentional, not like an error. Free exports from a crew link highlight the exporter too.
 - **Per copy:** highlighted runner, frame colour, 3D colour, medal on/off, address, payment.
 - **Crew incentive:** e.g. 10% off every copy once 3+ copies are ordered from the same link ⚑.
 - **Why it matters:** every crew design brings 2–6 orders from one creation, plus every member sees the brand. It's the highest-leverage growth loop in v1.
@@ -174,7 +176,7 @@ Editable until **locked for production**, 2 hours after payment by default, with
 | All designs, all 5 maps, runner counts | ✅ | ✅ |
 | Live preview (incl. 3D + medal preview) | ✅ | ✅ |
 | Export | **Social sizes only**, watermarked | n/a |
-| Print-resolution file | ❌ Never leaves the server | Used in-house for production |
+| Print-resolution file | ❌ Never leaves the server | Sent only to the partner print shop for production |
 | Print / frame / 3D route / medal slot / delivery | ❌ | ✅ |
 
 ### 6.2 Free export (locked)
@@ -196,6 +198,16 @@ Editable until **locked for production**, 2 hours after payment by default, with
 | **Framed** | Standard picture frame, glass sits flat on the print | ❌ (glass would crush it) | ❌ |
 | **Deep Frame** | A frame with a ~3–4 cm gap between glass and print, so objects can sit inside (a.k.a. "shadow box") | ✅ optional | ✅ optional, medal designs only |
 
+**Size × format availability (locked)**
+
+| | Print | Framed | Deep Frame | 3D route | Medal slot |
+|---|---|---|---|---|---|
+| **A4** | ✅ | ✅ | ✅ | ✅ | ✅ (medal ≤ ~85 mm) |
+| **A3** | ✅ | ✅ | ✅ | ✅ | ✅ (medal ≤ ~110 mm) |
+| **A2** | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+A2 is a **print-only poster**: at that size a medal looks lost in the frame, and large framed glass is costly and fragile to ship. Because 3D and medal both require the Deep Frame, they're unavailable on A2 too. The format picker greys out unavailable options with a one-line reason ("Medal slot available on A4 and A3").
+
 > **Why 3D and medal require the Deep Frame:** both are physical objects that stand off the paper. In a standard frame, the glass presses flat against the print. The Deep Frame is the only format that physically fits them, and it ships safely (the glass protects the relief and medal).
 
 > Dropped from v0.2: the *Hanger Bar* (medal hung on a bar outside the frame) and the *Crew Medal Box* (multiple medals), per the one-medal rule.
@@ -205,11 +217,11 @@ Editable until **locked for production**, 2 hours after payment by default, with
 | Item | A4 | A3 | A2 |
 |---|---|---|---|
 | Print (unframed) | RM 49 | RM 79 | RM 119 |
-| Framed | RM 129 | RM 189 | RM 269 |
-| Deep Frame | RM 179 | RM 249 | RM 339 |
-| **+ 3D raised route** | +RM 79 | +RM 99 | +RM 139 |
-| **+ Medal slot** | +RM 39 | +RM 39 | +RM 39 |
-| "Hero" (Deep Frame + 3D + medal) | RM 269 *(bundle −RM 28)* | RM 359 *(bundle −RM 28)* | RM 489 *(bundle −RM 28)* |
+| Framed | RM 129 | RM 189 | — |
+| Deep Frame | RM 179 | RM 249 | — |
+| **+ 3D raised route** | +RM 79 | +RM 99 | — |
+| **+ Medal slot** | +RM 39 | +RM 39 | — |
+| "Hero" (Deep Frame + 3D + medal) | RM 269 *(bundle −RM 28)* | RM 359 *(bundle −RM 28)* | — |
 | Delivery | Free over RM 150 (Peninsular); East MY flat fee ⚑ | | |
 
 > **A4 role:** the entry price point and the natural size for desks and Crew Copy Link members who want a cheaper copy. Expect it to have the highest volume but the thinnest margin, because frame and courier costs don't fall in proportion to the paper.
@@ -308,7 +320,7 @@ See §6.2.
 - **Build plate:** about 256×256 mm (verify against the final spec sheet). A3 is 297×420 mm, so the **3D route's bounding box is capped at 240×240 mm** (8 mm margin each side for bed adhesion and the brim). The editor shows this as a dashed "3D printable area" box while the add-on is on; the route can be rotated to fit diagonally.
   - **A4 (210×297 mm):** the paper is the limit, not the printer. The 3D area is the design's route zone, about 170×170 mm max.
   - **A3 (297×420 mm):** a route at a typical poster scale fits comfortably within 240×240 mm.
-  - **A2 (420×594 mm):** the cap means the 3D route is visually smaller relative to the poster. Show this honestly in the preview. Splitting into keyed segments is a later feature.
+  - **A2:** no 3D route (print-only size).
 - **Print settings (starting profile, tune on test prints):** PLA / silk PLA, 0.4 mm nozzle, line width 3.0 mm, height 2.0 mm, flat on the textured plate. One relief per plate, or several small ones by colour.
 - **Print time:** roughly 20–60 min per relief at this size. At a few orders a week, one P2S is plenty.
 - **Fragility:** long thin reliefs can warp or snap. Mitigations: minimum 3 mm width, rounded joins, merge near-parallel out-and-back segments (closer than 1.5 mm) into one wider stroke, and ship mounted inside the Deep Frame only.
@@ -320,7 +332,7 @@ See §6.2.
 - **Editor:**
   1. The medal zone is shown as a dashed placeholder. Text, route and 3D area are excluded from it.
   2. **Medal preview:** photograph your medal (on-device background removal) or pick a generic silhouette. Preview only, never printed.
-  3. **Fit check:** enter the medal diameter (mm). Maximum by size ⚑: **A4 ≈ 85 mm**, **A3 ≈ 110 mm**, **A2 ≈ 130 mm**, with a "how to measure" tooltip. If the medal is too big for the chosen size, suggest the next size up.
+  3. **Fit check:** enter the medal diameter (mm). Maximum by size ⚑: **A4 ≈ 85 mm**, **A3 ≈ 110 mm** (no medal slot on A2), with a "how to measure" tooltip. If the medal is too big for A4, suggest A3.
   4. **Ribbon:** visible above the medal / folded behind / removed. The preview reflects the choice.
 - **Print file:** the medal zone gets a subtle backing panel + optional text ("FINISHER · 42.195 KM"), so the frame looks intentional before the medal goes in.
 - **In the box:** an insertion card + QR video guide.
@@ -335,19 +347,33 @@ See §6.2.
 | Pixel size at 300 DPI | A4 2480×3508 · A3 3508×4961 · A2 4961×7016 |
 | Deep Frame mounting | Print is mounted on a **rigid backing board** (e.g. 3–5 mm foam board), so the 3D relief adhesive and the medal pin have something solid to hold, and the paper doesn't ripple |
 
-**Printer requirement:** A2 needs a **17-inch (A2-capable) pigment printer**, e.g. Epson SureColor P900 or Canon imagePROGRAF PRO-1000 class. 13-inch models (e.g. SureColor P700, PRO-300) stop at A3+. ⚑ *If the budget only allows a 13-inch printer at launch, offer A4 + A3 in-house and send A2 to a local fine-art print shop until volume justifies the bigger printer.*
+**Partner print shop (locked: third-party)**
+- **Requirements:**
+  - Offers **giclée / fine-art pigment printing** on 200 gsm matte paper up to A2
+  - Gives you their **paper ICC profile**, so the editor's "Paper preview" and the print file match their output
+  - Turnaround ≤ 2 working days
+  - Accepts orders by email / upload link / WhatsApp with a PDF attachment
+  - Prints are collected by, or couriered to, Miletag (not shipped direct to the customer)
+- **Shortlist 2 shops** (one main, one backup for race-week peaks). Run the same test file (a dark Graphite map design + a photo design) through both before choosing.
+- **Order handoff (v1):** from the Production Console, one click on **"Send to print shop"** emails the print PDF(s) with an order reference, size, paper and quantity. Batch several orders into one email to cut per-job fees. API integration isn't needed at a few orders a week.
+- **Every print comes back to Miletag**, even unframed ones. Reasons:
+  - you QC colour and damage before it ships
+  - framing, 3D mounting and medal-slot assembly happen in-house
+  - one branded packaging experience
+- **Lead time impact:** shop turnaround (1–2 days) + assembly (same day) + courier (1–3 days Peninsular, 3–7 days East MY). Checkout shows **5–8 working days** to start ⚑.
 
 **Colour fidelity:** matte fine-art paper prints deeper blacks as slightly softer and less saturated than a phone screen. Mitigations:
 - a "Paper preview" toggle in the editor (soft-proof using the paper ICC profile)
 - dark designs (Graphite, Noir) are tuned on test prints before launch
 
 ### 7.9 Checkout & delivery
-- **Formats:** Print / Framed / Deep Frame. **Sizes:** A4, A3, A2. **Frame colours:** black / oak / white.
+- **Formats:** Print / Framed / Deep Frame (Framed and Deep Frame on A4/A3 only). **Sizes:** A4, A3, A2. **Frame colours:** black / oak / white.
+- **Packaging:** A4/A3 unframed ship flat in a rigid mailer; **A2 ships rolled in a tube** (cheaper and safer at that size).
 - **Courier:** J&T / Pos Laju / Ninja Van / DHL eCommerce via an aggregator (e.g. EasyParcel) for rates + labels.
 - **Delivery:** Deep Frames are bulky, so price by volumetric weight, and East Malaysia gets its own lead time and fee shown at checkout.
 - **Order states:**
   - **Customer sees:** Paid → Editable (2 h) → In production → Shipped → Delivered.
-  - **Internal states:** Locked → Files ready → Printing → 3D printing → Assembly → QC → Packed → Shipped.
+  - **Internal states:** Locked → Files ready → **Sent to print shop → Print received** → 3D printing → Assembly → QC → Packed → Shipped. 3D printing can start as soon as files are ready, in parallel with the print shop.
 
 ### 7.10 Production Console lite (internal, P0)
 
@@ -357,7 +383,8 @@ Launch volume is **a few orders per week**, so v1 ships a deliberately thin back
 |---|---|
 | **Order list** | Table of orders with status, format, size, add-ons, East/West MY, order date |
 | **Job files** | Per order, download the **print PDF** (300 DPI, bleed, crop marks, medal backing panel), the **3D model (3MF, ready for Bambu Studio)**, the **alignment template PDF**, and a one-page **assembly sheet** (thumbnail, frame colour, filament colour, medal yes/no, ribbon option, crew copy highlight) |
-| **Status updates** | Buttons to move an order through Printing → 3D → Assembly → Shipped; each change pushes a notification to the customer |
+| **Print shop handoff** | "Send to print shop" emails the PDF(s) + order refs to the chosen shop (batchable); tracks Sent → Received; flags orders where the print is overdue |
+| **Status updates** | Buttons to move an order through Sent to shop → Received → 3D → Assembly → Shipped; each change pushes a notification to the customer |
 | **QC photo** | Optional photo of the finished piece, sent to the customer ("here's yours before it ships") |
 | **Shipping** | Enter a tracking number manually, or create a label via the courier aggregator; the tracking link goes to the customer |
 | **Lead time setting** | One manual number ("dispatch in N working days") shown at checkout |
@@ -446,7 +473,7 @@ SmoothUI, Amicro and Bencho are web React + Tailwind + Motion libraries.
 | Format picker (Print / Framed / Deep Frame) | SmoothUI **ExpandableCards** | Expands to show 3D + medal add-ons |
 | 3D route toggle | Amicro **tilt-card** | Route bevel + gyro parallax |
 | Medal drop-in | Amicro **zoom-in** + spring | Medal drops into slot |
-| Order / production status | SmoothUI **DynamicIsland** | "Printing → 3D printing → Assembly → Shipped" |
+| Order / production status | SmoothUI **DynamicIsland** | "Printing → 3D route → Assembly → Shipped" |
 | CTAs | Amicro **magnetic-button**, SmoothUI **DotMorphButton** | Press + haptic + morph |
 | Inputs | SmoothUI **AnimatedInput** | Floating label |
 | Finish-time reveal | SmoothUI **ScrambleHover / TypewriterText** | Digit scramble |
@@ -468,7 +495,7 @@ SmoothUI, Amicro and Bencho are web React + Tailwind + Motion libraries.
   - free export under 3 s
   - order files ready under 2 min after lock
 - **Privacy:** Malaysia PDPA, GDPR-ready, privacy-zone trim, account export/delete.
-- **Localisation:** English at launch (BM ⚑), MYR, DD/MM/YYYY, km.
+- **Localisation:** English at launch; Bahasa Malaysia shortly after (all strings i18n-ready from day one). MYR, DD/MM/YYYY, km.
 - **Accessibility:** dynamic type, screen-reader labels, Reduce Motion.
 - **Offline:** editor + free export work offline once assets are loaded.
 
@@ -478,6 +505,7 @@ SmoothUI, Amicro and Bencho are web React + Tailwind + Motion libraries.
 
 | Risk | Impact | Mitigation |
 |---|---|---|
+| **Print shop delay / colour inconsistency** | Late or off-colour orders | Backup shop; same ICC profile + test file at both; QC every print on receipt; overdue flag in console |
 | **Race-week spike beyond solo capacity** | Late deliveries | Manual lead-time setting at checkout; pause orders toggle; add a second P2S if demand appears (low capex) |
 | **Ops load on the founder** | Time | Lite console, few orders/week; time each step on the first 20 orders to price labour correctly |
 | **3D relief misaligned with printed line** | Returns | Registration pins + jig + printed line underneath by default |
@@ -505,7 +533,7 @@ SmoothUI, Amicro and Bencho are web React + Tailwind + Motion libraries.
 
 | Phase | Scope | Indicative duration |
 |---|---|---|
-| **0. Validate + set up the studio** | Set up the P2S + pigment printer (A2-capable or A3 + outsourced A2) + 200 gsm matte paper ICC profile + Deep Frame supplier + backing board; dial in the 3D print profile; test-produce every format × size; measure real unit times + costs; concierge-sell 10–20 orders at one Malaysian race | 4–6 wks (parallel with build) |
+| **0. Validate + set up the studio** | Shortlist + test 2 print shops (get ICC profile, unit prices per size, turnaround); set up the P2S; source Deep Frames + backing board; dial in the 3D print profile; test-produce every format × size; measure real unit times + costs; concierge-sell 10–20 orders at one Malaysian race | 4–6 wks (parallel with build) |
 | **1. v1 build** | Everything in §4: customer app (iOS/Android/Web), all 8 designs, runner selector, photo + 5 maps, GPX + Strava, 3D route pipeline, medal slot, free export, MY checkout + shipping, **Production Console lite**, Crew Copy Link | **14–18 wks** |
 | **1b. Soft launch** | Invite-only (run clubs) for 2–3 wks to stress-test production + 3D alignment before opening to the public | 2–3 wks |
 | **2. Next** | Split 3D for large routes, different-race multi-runner, capacity-aware console, BM localisation, AR preview | — |
@@ -517,9 +545,6 @@ SmoothUI, Amicro and Bencho are web React + Tailwind + Motion libraries.
 
 ## 15. Open questions (remaining)
 
-1. **Crew highlight:** on each member's copy, should their own name be subtly highlighted (default), or should all copies be identical?
-2. **Crew discount:** offer 10% off when 3+ copies are ordered from one link? *(Default: yes.)*
-3. **Pigment printer:** A2-capable (17-inch) from day one, or 13-inch for A4/A3 with A2 outsourced at first?
-4. **Medal slot on A4:** keep it (max medal ≈ 85 mm, which excludes some large marathon medals) or limit medal designs to A3/A2? *(Default: keep it, with the fit check suggesting A3 when the medal is too big.)*
-5. **Deep Frame supplier:** buy ready-made deep frames (fastest) or have a local framer make them (custom depth/colour)?
-6. **Bahasa Malaysia UI at launch or shortly after?** *(Default: shortly after.)*
+1. **Crew discount:** 10% off every copy when 3+ copies are ordered from one link? *(Default: yes.)*
+2. **Deep Frame supplier:** ready-made deep frames (fastest, cheapest at low volume) or a local framer (custom depth/colour)? *(Default: ready-made for launch.)*
+3. **Print shop shortlist:** do you already have a shop in mind? Get unit prices per size first; they're the biggest input to the cost sheet.
