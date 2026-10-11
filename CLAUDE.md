@@ -41,7 +41,7 @@ Miletag turns a race into wall art. Free: live editor and preview, drag the GPX 
 - Verified: typecheck, lint, expo-doctor 21/21, iOS + Android JS bundles compile, web flow tested in headless Chromium. **Not yet run on a real device.**
 - **EAS linked:** project `@clement119s-team/miletag` (id `69662fba-f6ff-463f-9947-84a4efadf3b3`). `EXPO_TOKEN` is a robot token on that account.
 - **Web is live:** https://miletag.expo.app (EAS Hosting). Redeploy with `npm run deploy:web` (needs `npx eas-cli` / `EXPO_TOKEN`). Smoke-tested runners → designs → map editor in headless Chromium, no console errors.
-- **Android dev build** queued on EAS (development profile, internal distribution). **iOS** blocked: needs an Apple Developer account (US$99/yr) and an interactive `eas credentials` run once.
+- **Android dev build** built OK on EAS (development profile, internal distribution; build 3262af9e). **iOS** blocked: needs an Apple Developer account (US$99/yr) and an interactive `eas credentials` run once.
 
 ## Gotchas learned
 - Reanimated + React Compiler lint: use `sv.get()` / `sv.set()`, not `.value`.
