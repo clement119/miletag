@@ -39,15 +39,19 @@ Miletag turns a race into wall art. Free: live editor and preview, drag the GPX 
 - Photo mode uses the Skia `route-canvas` (drag/pinch/rotate) on a placeholder grid; photo upload not built yet.
 - Web needs `public/canvaskit.wasm` and `public/maplibre/maplibre-gl-worker.mjs`, copied by `scripts/copy-web-assets.js` on `npm install` (gitignored).
 - Verified: typecheck, lint, expo-doctor 21/21, iOS + Android JS bundles compile, web flow tested in headless Chromium. **Not yet run on a real device.**
+- **EAS linked:** project `@clement119s-team/miletag` (id `69662fba-f6ff-463f-9947-84a4efadf3b3`). `EXPO_TOKEN` is a robot token on that account.
+- **Web is live:** https://miletag.expo.app (EAS Hosting). Redeploy with `npm run deploy:web` (needs `npx eas-cli` / `EXPO_TOKEN`). Smoke-tested runners → designs → map editor in headless Chromium, no console errors.
+- **Android dev build** queued on EAS (development profile, internal distribution). **iOS** blocked: needs an Apple Developer account (US$99/yr) and an interactive `eas credentials` run once.
 
 ## Gotchas learned
 - Reanimated + React Compiler lint: use `sv.get()` / `sv.set()`, not `.value`.
 - maplibre-react-native pins `@maplibre/maplibre-gl-style-spec` 26.2.1; our direct dep is newer, so the native map casts the style (`as unknown as MapProps['mapStyle']`).
 - maplibre-gl: import `{ Map as MapLibreMap, setWorkerUrl }`; worker URL must be `/maplibre/maplibre-gl-worker.mjs`.
 - Skia on web loads via `WithSkiaWeb` (`route-canvas/index.web.tsx`).
+- `eas init` writes the *resolved* config into app.json; check the diff (it added RECORD_AUDIO from expo-image-picker, now disabled via `microphonePermission: false`).
 - Playwright: launch with `executablePath: '/opt/pw-browsers/chromium'`; never `playwright install`.
 
 ## Next steps
-1. **Now:** confirm `EXPO_TOKEN` is set (check `env`, never print it), run `npx eas-cli@latest init` to link the project, then `npx eas-cli@latest build --profile development --platform android` (and iOS if credentials allow). Commit the `extra.eas.projectId` that init writes to `app.json`.
+1. Install the Android dev build on a real phone and test; iOS once Clement has an Apple Developer account.
 2. Photo backgrounds (expo-image-picker, DPI gate, scrim) + free watermarked social export.
 3. Checkout with FPX / DuitNow / e-wallets; then backend (Supabase), Crew Copy Link, server print + 3D file generation, Production Console lite.

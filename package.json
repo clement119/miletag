@@ -49,7 +49,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "postinstall": "node scripts/copy-web-assets.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy:web": "expo export --platform web && eas deploy --prod"
   },
   "private": true
 }
