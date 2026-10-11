@@ -146,18 +146,18 @@
 
 @keyframes tms-blur-b { from { filter: blur(2px); } to { filter: blur(0); } }
 
-/* Miletag: the glass tone, for the editor's floating controls over a photo.
-   See-through and blurred instead of a solid slab; the mark takes the accent. */
+/* Miletag: the glass tone, for the editor's controls over a photo. Fully transparent:
+   no slab, no blur, the photo shows through untouched. A soft shadow on the ink keeps
+   the readout and ticks legible on any photo. */
 .tms[data-tone="glass"] {
-  --fill-slab: rgba(20, 20, 22, 0.28);
-  background: var(--fill-slab);
-  -webkit-backdrop-filter: blur(18px) saturate(1.4);
-  backdrop-filter: blur(18px) saturate(1.4);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);}
+  --fill-slab: transparent;
+  background: transparent;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);}
+
+.tms[data-tone="glass"] .tms-track { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7)); }
 
 .tms[data-tone="glass"] .tms-mer,
-.tms[data-tone="glass"] .tms-hour { color: rgba(245, 245, 244, 0.72); }
+.tms[data-tone="glass"] .tms-hour { color: rgba(245, 245, 244, 0.85); }
 
 .tms[data-tone="glass"] .tms-mark { background: var(--signal); }
 

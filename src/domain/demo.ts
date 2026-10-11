@@ -113,8 +113,25 @@ export function withSamples(
    * it reads blank while the user types into it.
    */
   editing?: string | null,
+  /**
+   * Text edit mode: unfilled text shows what goes there (EVENT NAME, YOUR NAME…)
+   * instead of sample content. Numbers keep their samples, since the dials need a
+   * value to start from.
+   */
+  placeholders = false,
 ): { doc: DesignDocument; usingSamples: boolean } {
-  const demo = demoDocument(doc.designId, doc.runners.length as RunnerCount);
+  const sample = demoDocument(doc.designId, doc.runners.length as RunnerCount);
+  const demo = placeholders
+    ? {
+        ...sample,
+        text: { title: 'EVENT NAME', date: 'EVENT DATE', city: 'CITY', country: 'COUNTRY' },
+        runners: sample.runners.map((r, i) => ({
+          ...r,
+          name: doc.runners.length > 1 ? `RUNNER ${i + 1}` : 'YOUR NAME',
+          bib: 'BIB',
+        })),
+      }
+    : sample;
   const [field, index] = (editing ?? '').split(':');
   const skip = (key: string, i?: number) =>
     (field === key && (i === undefined || Number(index) === i)) ||

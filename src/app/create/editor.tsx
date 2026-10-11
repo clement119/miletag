@@ -27,7 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Generate } from '@/components/bencho/generate';
 import { TimeScrubber } from '@/components/bencho/time-scrubber';
-import { Glass, GlassButton, GlassRow, GlassSwatch } from '@/components/editor/glass';
+import { Clear, Glass, GlassButton, GlassRow, GlassSwatch, GlassSwatchRow } from '@/components/editor/glass';
 import { ToolRail, type ToolItem } from '@/components/editor/tool-bar';
 import { MapCanvas } from '@/components/map-canvas';
 import { GRADE_COLOUR, getPhotoQuality, PhotoQualityNotice } from '@/components/photo-quality';
@@ -144,7 +144,7 @@ export default function Editor() {
   const dialing = textMode && isDialField(editField);
   // What the poster shows: the user's content, with samples filling the gaps (but never
   // in the field being edited, which reads blank).
-  const display = withSamples(doc, textMode && !dialing ? editField : null);
+  const display = withSamples(doc, textMode && !dialing ? editField : null, textMode);
 
   const openTool = (id: ToolId | null) => {
     if (id === 'wand') {
@@ -543,7 +543,7 @@ export default function Editor() {
           )}
         </GlassRow>
         {bg.type === 'map' && (
-          <GlassRow>
+          <GlassSwatchRow>
             {MAP_STYLES.map((s) => (
               <GlassSwatch
                 key={s.id}
@@ -554,7 +554,7 @@ export default function Editor() {
                 onPress={() => setMapStyle(s.id)}
               />
             ))}
-          </GlassRow>
+          </GlassSwatchRow>
         )}
       </>
     ),
@@ -633,7 +633,7 @@ export default function Editor() {
             onPress={importGpx}
           />
         </GlassRow>
-        <GlassRow>
+        <GlassSwatchRow>
           {ROUTE_COLOURS.map((c) => (
             <GlassSwatch
               key={c}
@@ -644,19 +644,19 @@ export default function Editor() {
               onPress={() => update((d) => ({ ...d, route: { ...d.route, stroke: { ...d.route.stroke, color: c } } }))}
             />
           ))}
-        </GlassRow>
+        </GlassSwatchRow>
       </>
     ),
     quality: () => (
-      <Glass style={styles.card}>
+      <Clear style={styles.card}>
         <PhotoQualityNotice doc={doc} onAcknowledge={(lowResAckDpi) => setPhotoOptions({ lowResAckDpi })} />
-      </Glass>
+      </Clear>
     ),
     runner: () => {
       const i = Math.min(runnerIndex, doc.runners.length - 1);
       const runner = doc.runners[i];
       return (
-        <Glass style={styles.card}>
+        <Clear style={styles.card}>
           {doc.runners.length > 1 && (
             <View style={styles.row}>
               {doc.runners.map((r, n) => (
@@ -687,14 +687,13 @@ export default function Editor() {
               style={styles.flex}
             />
           </View>
-        </Glass>
+        </Clear>
       );
     },
   };
 
   const iconColour = tone === 'light' ? '#fff' : '#111';
   const shadow = tone === 'light' ? styles.shadow : undefined;
-  const hintText = display.usingSamples ? 'Showing sample content. Tap the icons to make it yours.' : hint;
 
   return (
     <View style={[styles.screen, { backgroundColor: paperColour }]} accessibilityHint={hint}>
@@ -789,7 +788,7 @@ export default function Editor() {
           {dialing && editField ? (
             fieldDial(editField)
           ) : (
-            <View style={styles.inkRow} pointerEvents="box-none">
+            <GlassSwatchRow>
               {look.inks.map((ink) => (
                 <GlassSwatch
                   key={ink.hex}
@@ -800,7 +799,7 @@ export default function Editor() {
                   onPress={() => update((d) => ({ ...d, ink: ink.hex }))}
                 />
               ))}
-            </View>
+            </GlassSwatchRow>
           )}
           <AppText
             variant="caption"
@@ -821,7 +820,7 @@ export default function Editor() {
         {textMode ? null : activeTool ? (
           // Controls on a see-through blurred band laid over the bottom of the preview.
           // The preview behind it never moves or shrinks. No Done: tap outside to close.
-          <Glass style={[styles.tray, { paddingBottom: insets.bottom + Spacing.three }]}>
+          <Clear style={[styles.tray, { paddingBottom: insets.bottom + Spacing.three }]}>
             {notice && (
               <AppText
                 variant="caption"
@@ -831,17 +830,23 @@ export default function Editor() {
               </AppText>
             )}
             {controls[activeTool]?.()}
-          </Glass>
+          </Clear>
         ) : (
           <View style={[styles.bottomBar, { paddingBottom: insets.bottom + Spacing.three }]} pointerEvents="box-none">
             <AppText
               variant="caption"
               style={[styles.hint, { color: notice ? Colors.accent : iconColour }, shadow]}
               numberOfLines={2}>
-              {notice ?? hintText}
+              {notice ?? hint}
             </AppText>
-            <Pressable accessibilityRole="button" onPress={next} style={styles.nextButton}>
-              <AppText style={styles.nextLabel}>Next</AppText>
+            {/* Next: just an arrow. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Next"
+              onPress={next}
+              hitSlop={8}
+              style={styles.nextButton}>
+              <Ionicons name="arrow-forward" size={24} color={Colors.accentText} />
             </Pressable>
           </View>
         )}
@@ -943,18 +948,18 @@ const styles = StyleSheet.create({
   message: { color: '#fff', textAlign: 'center' },
   noTouch: { pointerEvents: 'none' },
   topControls: { position: 'absolute', left: 56, right: 56, alignItems: 'center', gap: Spacing.two },
-  inkRow: { flexDirection: 'row', gap: Spacing.three, pointerEvents: 'box-none' },
   // The dial is 300 wide; the rail hides while it's open, so it can use the full width.
   topControlsWide: { left: Spacing.three, right: Spacing.three },
   bottomBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingHorizontal: Spacing.three },
   hint: { flex: 1 },
   nextButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: Colors.accent,
-    borderRadius: Radius.pill,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: 12,
   },
-  nextLabel: { color: Colors.accentText, fontWeight: '700', fontSize: 16 },
   card: { padding: Spacing.three, gap: Spacing.two },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   runnerTab: {
