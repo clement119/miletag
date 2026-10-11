@@ -1,6 +1,9 @@
 /**
- * The editor, Instagram style: poster in the middle, a row of icon tools at the
- * bottom and the selected tool's controls just above it. Fits one screen; no scrolling.
+ * The editor, Instagram Stories style: the poster fills the screen edge to edge,
+ * tool icons sit in a column over its top right, and tapping one opens that tool's
+ * controls at the bottom (the poster shrinks to stay fully visible). Until the user
+ * adds their own content, the design shows sample content so it looks like its
+ * gallery preview. Fits one screen; no scrolling.
  */
 
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -13,13 +16,13 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  useWindowDimensions,
   View,
-  type LayoutChangeEvent,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedTabs } from '@/components/animated-tabs';
-import { ToolBar, type ToolItem } from '@/components/editor/tool-bar';
+import { ToolRail, type ToolItem } from '@/components/editor/tool-bar';
 import { MapCanvas } from '@/components/map-canvas';
 import { GRADE_COLOUR, getPhotoQuality, PhotoQualityNotice } from '@/components/photo-quality';
 import { canvasAspect, Poster } from '@/components/posters';
@@ -29,6 +32,7 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 import { getDesign, PAPER_MM } from '@/domain/catalog';
 import { defaultBackground, type Background } from '@/domain/design-document';
 import { getLook } from '@/domain/design-looks';
+import { DEMO_PHOTO, withSamples } from '@/domain/demo';
 import { pickPhoto } from '@/domain/import-photo';
 import { getMapStyle, MAP_ATTRIBUTION, MAP_STYLES, type MapLayerToggles, type MapStyleId } from '@/domain/map-styles';
 import { DEFAULT_PHOTO_CROP, SCRIM_LEVELS } from '@/domain/photo';
@@ -40,16 +44,20 @@ import { useDesign } from '@/state/design-store';
 type ToolId = 'background' | 'adjust' | 'layers' | 'route' | 'race' | 'runner' | 'quality';
 
 const ROUTE_COLOURS = ['#F5A623', '#E4572E', '#E4FF1A', '#FFFFFF', '#111111', '#2F80ED'];
-const PANEL_HEIGHT = 168;
+/** Height of the toolkit sheet when a tool is open. */
+const SHEET_HEIGHT = 236;
+/** Hint + Next row under the poster when no tool is open. */
+const BOTTOM_BAR = 76;
 
 export default function Editor() {
   const { doc, update } = useDesign();
-  const [tool, setTool] = useState<ToolId>('background');
+  const [tool, setTool] = useState<ToolId | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [timeText, setTimeText] = useState<Record<number, string>>({});
   const [adjust, setAdjust] = useState<'photo' | 'route'>('photo');
   const [runnerIndex, setRunnerIndex] = useState(0);
-  const [stage, setStage] = useState({ width: 0, height: 0 });
+  const window = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
   if (!doc) return <Redirect href="/create/runners" />;
   const design = getDesign(doc.designId);
@@ -59,8 +67,13 @@ export default function Editor() {
   const bg = doc.background;
   const quality = getPhotoQuality(doc);
 
-  // Largest poster that fits the stage.
-  const posterWidth = Math.max(0, Math.min(stage.width - Spacing.four, (stage.height - Spacing.three) * aspect));
+  // Edge to edge: full screen width, unless the height (minus the open toolkit) runs out first.
+  // Sized from the window, not onLayout, so it can never collapse to zero.
+  const sheetOpen = tool !== null;
+  const availableHeight = window.height - insets.top - insets.bottom - (sheetOpen ? SHEET_HEIGHT : BOTTOM_BAR);
+  const posterWidth = Math.max(120, Math.min(window.width, availableHeight * aspect));
+  // What the poster shows: the user's content, with samples filling the gaps.
+  const display = withSamples(doc);
 
   const tools: ToolItem<ToolId>[] = [
     { id: 'background', label: 'Background', icon: bg.type === 'photo' ? 'image-outline' : 'map-outline' },
@@ -81,10 +94,10 @@ export default function Editor() {
         ]
       : []),
   ];
-  // The Adjust/Layers/Quality tools come and go with the background; fall back sensibly.
-  const activeTool = tools.some((t) => t.id === tool) ? tool : 'background';
+  // The Adjust/Layers/Quality tools come and go with the background.
+  const activeTool = tools.some((t) => t.id === tool) ? tool : null;
 
-  const openTool = (id: ToolId) => {
+  const openTool = (id: ToolId | null) => {
     setNotice(null);
     setTool(id);
   };
@@ -194,7 +207,7 @@ export default function Editor() {
       <MapCanvas
         styleId={bg.styleId}
         layers={bg.layers}
-        geo={doc.route.geo}
+        geo={display.doc.route.geo}
         routeColor={doc.route.stroke.color}
         camera={bg.camera}
         aspectRatio={slotAspect}
@@ -204,7 +217,7 @@ export default function Editor() {
       />
     ) : (
       <RouteCanvas
-        points={doc.route.points}
+        points={display.doc.route.points}
         transform={doc.route.transform}
         strokeColor={doc.route.stroke.color}
         aspectRatio={slotAspect}
@@ -220,7 +233,8 @@ export default function Editor() {
                 scrim: bg.scrim,
                 mono: bg.mono,
               }
-            : null
+            : // Sample photo until they choose theirs.
+              { ...DEMO_PHOTO, crop: bg.crop, scrim: bg.scrim, mono: bg.mono }
         }
         onPhotoCropEnd={(crop) => setPhotoOptions({ crop })}
         adjust={adjust}
@@ -228,7 +242,7 @@ export default function Editor() {
     );
 
   const poster = (
-    <Poster doc={doc} aspectRatio={aspect} footnote={bg.type === 'map' ? MAP_ATTRIBUTION : undefined}>
+    <Poster doc={display.doc} aspectRatio={aspect} footnote={bg.type === 'map' ? MAP_ATTRIBUTION : undefined}>
       {canvas}
     </Poster>
   );
@@ -418,43 +432,55 @@ export default function Editor() {
     quality: () => <PhotoQualityNotice doc={doc} onAcknowledge={(lowResAckDpi) => setPhotoOptions({ lowResAckDpi })} />,
   };
 
+  const toolTitle = tools.find((t) => t.id === activeTool)?.label;
+
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom', 'left', 'right']}>
+    <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.topBar}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="chevron-back" size={26} color={Colors.text} />
+        <View style={[styles.stage, { height: availableHeight }]} accessibilityHint={hint}>
+          <View style={{ width: posterWidth }}>{poster}</View>
+
+          {/* Overlays: back top-left, tool rail top-right. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            onPress={() => router.back()}
+            hitSlop={8}
+            style={[styles.roundButton, styles.back]}>
+            <Ionicons name="chevron-back" size={22} color="#fff" />
           </Pressable>
-          <AppText style={styles.topTitle} numberOfLines={1}>
-            {design?.name}
-          </AppText>
-          <Pressable accessibilityRole="button" onPress={next} style={styles.nextButton}>
-            <AppText style={styles.nextLabel}>Next</AppText>
-          </Pressable>
+          <ToolRail tools={tools} value={activeTool} onChange={openTool} style={styles.rail} />
         </View>
 
-        <View
-          style={styles.stage}
-          onLayout={(e: LayoutChangeEvent) => setStage(e.nativeEvent.layout)}
-          accessibilityHint={hint}>
-          {posterWidth > 0 && <View style={{ width: posterWidth }}>{poster}</View>}
-        </View>
-        <AppText variant="caption" style={styles.hint} numberOfLines={1}>
-          {hint}
-        </AppText>
-
-        <ScrollView style={styles.panel} contentContainerStyle={styles.panelContent} bounces={false}>
-          {notice && (
-            <View style={styles.notice}>
-              <AppText style={styles.noticeText}>{notice}</AppText>
+        {activeTool ? (
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <AppText style={styles.sheetTitle}>{toolTitle}</AppText>
+              <Pressable accessibilityRole="button" onPress={() => openTool(null)} hitSlop={10}>
+                <AppText style={styles.done}>Done</AppText>
+              </Pressable>
             </View>
-          )}
-          {panels[activeTool]()}
-        </ScrollView>
-
-        <ToolBar tools={tools} value={activeTool} onChange={openTool} />
+            <ScrollView contentContainerStyle={styles.panelContent} bounces={false} keyboardShouldPersistTaps="handled">
+              {notice && (
+                <View style={styles.notice}>
+                  <AppText style={styles.noticeText}>{notice}</AppText>
+                </View>
+              )}
+              {panels[activeTool]()}
+            </ScrollView>
+          </View>
+        ) : (
+          <View style={styles.bottomBar}>
+            <AppText variant="caption" style={styles.hint} numberOfLines={2}>
+              {display.usingSamples ? 'Showing sample content. Tap the icons to make it yours.' : hint}
+            </AppText>
+            <Pressable accessibilityRole="button" onPress={next} style={styles.nextButton}>
+              <AppText style={styles.nextLabel}>Next</AppText>
+            </Pressable>
+          </View>
+        )}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -494,25 +520,51 @@ function Swatch({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  flex: { flex: 1 },
-  topBar: {
+  // minWidth 0 lets inputs share a row (web inputs otherwise keep a default width).
+  flex: { flex: 1, minWidth: 0 },
+  stage: { alignItems: 'center', justifyContent: 'center' },
+  roundButton: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  back: { top: Spacing.three, left: Spacing.three },
+  rail: { position: 'absolute', top: Spacing.three, right: Spacing.three },
+  bottomBar: {
+    height: BOTTOM_BAR,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
     paddingHorizontal: Spacing.three,
-    height: 52,
   },
-  topTitle: { flex: 1, fontWeight: '700', fontSize: 17 },
+  hint: { flex: 1 },
   nextButton: {
     backgroundColor: Colors.accent,
     borderRadius: Radius.pill,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: 12,
   },
-  nextLabel: { color: Colors.accentText, fontWeight: '700' },
-  stage: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 120 },
-  hint: { textAlign: 'center', paddingHorizontal: Spacing.three, paddingVertical: Spacing.one },
-  panel: { height: PANEL_HEIGHT, flexGrow: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border },
+  nextLabel: { color: Colors.accentText, fontWeight: '700', fontSize: 16 },
+  sheet: {
+    height: SHEET_HEIGHT,
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: Radius.lg,
+    borderTopRightRadius: Radius.lg,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.one,
+  },
+  sheetTitle: { fontWeight: '700', fontSize: 16 },
+  done: { color: Colors.accent, fontWeight: '700', fontSize: 16 },
   panelContent: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, gap: Spacing.two },
   notice: { backgroundColor: Colors.surfaceRaised, borderRadius: Radius.sm, padding: Spacing.two },
   noticeText: { color: Colors.accent, fontWeight: '600' },

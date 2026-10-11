@@ -1,14 +1,14 @@
 /**
- * Instagram-style editor toolbar: a row of icon tools along the bottom. The
- * selected tool's panel sits directly above it, so editing never needs scrolling.
+ * Instagram Stories-style tool rail: a column of round icon buttons over the top
+ * right of the preview. Tapping one opens its toolkit at the bottom; tapping the
+ * open one again closes it.
  */
 
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { tap } from '@/components/ui';
-import { Colors, Spacing } from '@/constants/theme';
 
 export type ToolItem<T extends string> = {
   id: T;
@@ -18,68 +18,59 @@ export type ToolItem<T extends string> = {
   dot?: string;
 };
 
-type Props<T extends string> = { tools: readonly ToolItem<T>[]; value: T; onChange: (id: T) => void };
+type Props<T extends string> = {
+  tools: readonly ToolItem<T>[];
+  /** The open tool, or null when the toolkit is closed. */
+  value: T | null;
+  onChange: (id: T | null) => void;
+  style?: StyleProp<ViewStyle>;
+};
 
-export function ToolBar<T extends string>({ tools, value, onChange }: Props<T>) {
+export function ToolRail<T extends string>({ tools, value, onChange, style }: Props<T>) {
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.bar}
-      contentContainerStyle={styles.row}
-      accessibilityRole="tablist">
+    <View style={[styles.rail, style]} accessibilityRole="tablist">
       {tools.map((tool) => {
         const selected = tool.id === value;
-        const colour = selected ? Colors.text : Colors.textMuted;
         return (
           <Pressable
             key={tool.id}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             accessibilityLabel={tool.label}
+            hitSlop={6}
             onPress={() => {
               tap();
-              onChange(tool.id);
+              onChange(selected ? null : tool.id);
             }}
-            style={styles.tool}>
-            <View style={[styles.iconWrap, selected && styles.iconSelected]}>
-              <Ionicons name={tool.icon} size={20} color={colour} />
-              {tool.dot && <View style={[styles.dot, { backgroundColor: tool.dot }]} />}
-            </View>
-            <Text style={[styles.label, { color: colour }]} numberOfLines={1}>
-              {tool.label}
-            </Text>
+            style={[styles.button, selected && styles.selected]}>
+            <Ionicons name={tool.icon} size={20} color={selected ? '#000' : '#fff'} />
+            {tool.dot && <View style={[styles.dot, { backgroundColor: tool.dot }]} />}
           </Pressable>
         );
       })}
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  // Don't stretch: on web a ScrollView grows to fill its parent.
-  bar: { flexGrow: 0 },
-  row: { paddingHorizontal: Spacing.two, gap: Spacing.one, flexGrow: 1, justifyContent: 'space-around' },
-  tool: { alignItems: 'center', minWidth: 54, paddingVertical: Spacing.one, gap: 4 },
-  iconWrap: {
+  rail: { gap: 10, alignItems: 'center' },
+  button: {
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  iconSelected: { borderColor: Colors.text },
+  selected: { backgroundColor: '#fff' },
   dot: {
     position: 'absolute',
-    top: 2,
-    right: 2,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    top: 0,
+    right: 0,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
     borderWidth: 2,
-    borderColor: Colors.background,
+    borderColor: '#000',
   },
-  label: { fontSize: 11, fontWeight: '600' },
 });

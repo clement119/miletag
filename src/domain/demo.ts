@@ -6,7 +6,7 @@
 
 import type { RunnerCount } from './catalog';
 import { createDesignDocument, type DesignDocument } from './design-document';
-import type { XY } from './route/geometry';
+import type { LngLat, XY } from './route/geometry';
 
 /** A city-marathon loop, normalised to a unit box (x, y pairs). */
 const ROUTE_XY = [
@@ -35,6 +35,39 @@ export const DEMO_ROUTE: XY[] = Array.from({ length: ROUTE_XY.length / 2 }, (_, 
   x: ROUTE_XY[i * 2],
   y: ROUTE_XY[i * 2 + 1],
 }));
+
+/** The same loop through central Kuala Lumpur, as lon/lat pairs (for map backgrounds). */
+const ROUTE_LNGLAT = [
+  101.651, 3.14262, 101.65188, 3.14395, 101.65256, 3.1455, 101.65309, 3.1475, 101.65413, 3.14989, 101.6553, 3.15253,
+  101.65681, 3.15414, 101.65783, 3.15659, 101.65953, 3.15749, 101.66088, 3.15894, 101.66274, 3.15983, 101.66427,
+  3.15996, 101.66536, 3.16032, 101.66716, 3.15993, 101.66868, 3.16044, 101.67059, 3.16118, 101.6719, 3.16237, 101.67268,
+  3.16364, 101.67422, 3.16521, 101.67484, 3.16707, 101.67584, 3.16942, 101.67701, 3.1712, 101.67753, 3.1733, 101.67886,
+  3.1748, 101.68033, 3.17668, 101.6821, 3.17794, 101.68341, 3.17844, 101.68512, 3.17955, 101.68701, 3.18012, 101.68961,
+  3.1807, 101.69162, 3.18118, 101.69325, 3.18092, 101.69471, 3.18069, 101.69623, 3.17941, 101.69704, 3.17823, 101.69766,
+  3.1764, 101.69903, 3.17415, 101.70006, 3.17272, 101.70062, 3.17056, 101.70135, 3.16922, 101.70265, 3.16854, 101.7039,
+  3.16751, 101.70539, 3.16778, 101.7071, 3.16735, 101.70841, 3.168, 101.71041, 3.16811, 101.71227, 3.16869, 101.71349,
+  3.1697, 101.71524, 3.16997, 101.71751, 3.17147, 101.71876, 3.17268, 101.72079, 3.17395, 101.72307, 3.17566, 101.72452,
+  3.17693, 101.72666, 3.1779, 101.7288, 3.17843, 101.72987, 3.17849, 101.73131, 3.17821, 101.73276, 3.17627, 101.73393,
+  3.17447, 101.73456, 3.17271, 101.73514, 3.17025, 101.73566, 3.16845, 101.736, 3.16622, 101.73594, 3.16445, 101.73485,
+  3.16273, 101.73346, 3.16099, 101.73148, 3.15905, 101.72983, 3.15815, 101.72741, 3.1565, 101.72562, 3.15517, 101.72463,
+  3.15288, 101.72362, 3.15166, 101.72349, 3.15025, 101.72462, 3.14831, 101.72642, 3.14655, 101.72739, 3.14403,
+  101.72946, 3.14281, 101.73087, 3.14106, 101.73177, 3.13848, 101.73223, 3.13698, 101.73118, 3.13548, 101.73006,
+  3.13323, 101.7289, 3.13128, 101.727, 3.12987, 101.72548, 3.12753, 101.72353, 3.12621, 101.72156, 3.12516, 101.71927,
+  3.12471, 101.71762, 3.12513, 101.71548, 3.12563, 101.71375, 3.12644, 101.71238, 3.128, 101.71044, 3.1289, 101.70861,
+  3.13051, 101.70629, 3.13124, 101.70475, 3.13118, 101.70381, 3.12964, 101.70292, 3.12829, 101.70184, 3.12586,
+  101.70052, 3.12355, 101.70034, 3.12103, 101.69929, 3.1191, 101.69774, 3.11716, 101.69658, 3.11619, 101.69557, 3.1164,
+  101.69335, 3.11649, 101.69173, 3.11815, 101.68929, 3.11944, 101.68796, 3.12022, 101.68541, 3.12136, 101.68427, 3.1223,
+  101.68209, 3.12261, 101.68041, 3.12256, 101.67973, 3.12099, 101.67806, 3.11933, 101.67673, 3.11781, 101.67584,
+  3.11683, 101.67415, 3.11549, 101.67291, 3.11444, 101.67166, 3.11442, 101.67024, 3.11461, 101.66911, 3.11615,
+  101.66796, 3.11735, 101.66649, 3.1192, 101.66523, 3.1215, 101.66397, 3.12389, 101.66265, 3.12556, 101.66109, 3.12654,
+  101.66004, 3.12811, 101.65928, 3.1293, 101.65773, 3.13055, 101.65675, 3.13147, 101.6553, 3.1327, 101.65445, 3.13387,
+  101.65407, 3.13445, 101.65322, 3.13508,
+];
+
+export const DEMO_GEO: LngLat[] = Array.from(
+  { length: ROUTE_LNGLAT.length / 2 },
+  (_, i) => [ROUTE_LNGLAT[i * 2], ROUTE_LNGLAT[i * 2 + 1]] as LngLat,
+);
 
 export const DEMO_PHOTO = {
   uri: require('../../assets/images/demo/demo-city.jpg') as number,
@@ -66,4 +99,34 @@ export function demoDocument(designId: string, runnerCount: RunnerCount): Design
     runners: RUNNERS.slice(0, runnerCount).map((r, i) => ({ ...r, distanceKm: i === 0 ? 42.2 : undefined })),
     route: { ...doc.route, points: DEMO_ROUTE },
   };
+}
+
+/**
+ * What the editor shows: the user's document with sample content filling anything
+ * they haven't added yet, so the design looks like its gallery preview from the start.
+ * Display only. The real document (and the Next checks) never contain samples.
+ */
+export function withSamples(doc: DesignDocument): { doc: DesignDocument; usingSamples: boolean } {
+  const demo = demoDocument(doc.designId, doc.runners.length as RunnerCount);
+  const pick = (value: string, sample: string) => (value.trim() ? value : sample);
+  const text = {
+    title: pick(doc.text.title, demo.text.title),
+    date: pick(doc.text.date, demo.text.date),
+    city: pick(doc.text.city, demo.text.city),
+    country: pick(doc.text.country, demo.text.country),
+  };
+  const runners = doc.runners.map((r, i) => ({
+    ...r,
+    name: pick(r.name, demo.runners[i].name),
+    bib: r.bib?.trim() ? r.bib : demo.runners[i].bib,
+    timeSeconds: r.timeSeconds ?? demo.runners[i].timeSeconds,
+    distanceKm: i === 0 ? (r.distanceKm ?? 42.2) : r.distanceKm,
+  }));
+  const route = { ...doc.route, points: doc.route.points ?? DEMO_ROUTE, geo: doc.route.geo ?? DEMO_GEO };
+  const usingSamples =
+    Object.values(doc.text).some((v) => !v.trim()) ||
+    doc.runners.some((r) => !r.name.trim() || !r.bib?.trim() || !r.timeSeconds) ||
+    !doc.route.geo ||
+    (doc.background.type === 'photo' && !doc.background.photo);
+  return { doc: { ...doc, text, runners, route }, usingSamples };
 }

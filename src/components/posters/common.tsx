@@ -120,7 +120,7 @@ export function posterData(doc: DesignDocument) {
 }
 
 const styles = StyleSheet.create({
-  sheet: { width: '100%', overflow: 'hidden', borderRadius: 2 },
+  sheet: { width: '100%', overflow: 'hidden' },
   passThrough: { pointerEvents: 'none' },
   footnote: {
     position: 'absolute',
