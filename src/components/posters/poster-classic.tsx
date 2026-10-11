@@ -6,17 +6,16 @@
 
 import { StyleSheet, Text, View } from 'react-native';
 
+import { getLook } from '@/domain/design-looks';
 import { POSTER_CLASSIC_SQUARE } from '@/domain/photo';
 
-import { fitFont, PosterFonts, posterData, Sheet, type PosterProps } from './common';
-
-const PAPER = '#FAFAF7';
-const INK = '#141414';
-const INK_MUTED = '#55524C';
+import { alpha, fitFont, PosterFonts, posterData, Sheet, type PosterProps } from './common';
 
 export function PosterClassic({ doc, aspectRatio, children, footnote }: PosterProps) {
   const p = posterData(doc);
   const runner = p.runners[0];
+  const ink = { color: doc.ink };
+  const muted = { color: alpha(doc.ink, 0.72) };
   const stats = [
     { value: p.distanceKm ? p.distanceKm.toFixed(2) : '0.00', label: 'KM' },
     { value: runner.time, label: 'TIME' },
@@ -24,7 +23,7 @@ export function PosterClassic({ doc, aspectRatio, children, footnote }: PosterPr
   ];
 
   return (
-    <Sheet aspectRatio={aspectRatio} style={{ backgroundColor: PAPER }}>
+    <Sheet aspectRatio={aspectRatio} style={{ backgroundColor: getLook(doc.designId).paper ?? undefined }}>
       {(w) => {
         const margin = w * ((1 - POSTER_CLASSIC_SQUARE) / 2);
         const inner = POSTER_CLASSIC_SQUARE;
@@ -33,10 +32,14 @@ export function PosterClassic({ doc, aspectRatio, children, footnote }: PosterPr
           <View style={[styles.fill, { paddingHorizontal: margin, paddingTop: margin * 0.85 }]}>
             <Text
               numberOfLines={1}
-              style={[styles.title, { fontSize: fitFont(p.title, 0.085, inner, 0.5) * w, letterSpacing: w * 0.003 }]}>
+              style={[
+                styles.title,
+                ink,
+                { fontSize: fitFont(p.title, 0.085, inner, 0.5) * w, letterSpacing: w * 0.003 },
+              ]}>
               {p.title.toUpperCase()}
             </Text>
-            <Text numberOfLines={1} style={[styles.date, { fontSize: w * 0.034, letterSpacing: w * 0.002 }]}>
+            <Text numberOfLines={1} style={[styles.date, muted, { fontSize: w * 0.034, letterSpacing: w * 0.002 }]}>
               {p.date.toUpperCase()}
             </Text>
 
@@ -57,22 +60,25 @@ export function PosterClassic({ doc, aspectRatio, children, footnote }: PosterPr
                 numberOfLines={1}
                 style={[
                   styles.name,
+                  ink,
                   { fontSize: fitFont(nameLine, 0.05, inner * 0.75, 0.5) * w, letterSpacing: w * 0.002 },
                 ]}>
                 {runner.name.toUpperCase()}
-                {runner.bib ? <Text style={styles.bib}>{` #${runner.bib}`}</Text> : null}
+                {runner.bib ? <Text style={[styles.bib, muted]}>{` #${runner.bib}`}</Text> : null}
               </Text>
               <View
                 style={[
-                  styles.rule,
+                  { backgroundColor: doc.ink },
                   { width: inner * w * 0.62, height: Math.max(1, w * 0.003), marginVertical: w * 0.012 },
                 ]}
               />
               <View style={[styles.stats, { gap: w * 0.06 }]}>
                 {stats.map((s) => (
                   <View key={s.label} style={styles.stat}>
-                    <Text style={[styles.statValue, { fontSize: w * 0.045 }]}>{s.value}</Text>
-                    <Text style={[styles.statLabel, { fontSize: w * 0.019, letterSpacing: w * 0.002 }]}>{s.label}</Text>
+                    <Text style={[styles.statValue, ink, { fontSize: w * 0.045 }]}>{s.value}</Text>
+                    <Text style={[styles.statLabel, muted, { fontSize: w * 0.019, letterSpacing: w * 0.002 }]}>
+                      {s.label}
+                    </Text>
                   </View>
                 ))}
               </View>
@@ -86,16 +92,15 @@ export function PosterClassic({ doc, aspectRatio, children, footnote }: PosterPr
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  title: { color: INK, fontFamily: PosterFonts.condensedBold },
-  date: { color: INK_MUTED, fontFamily: PosterFonts.condensed },
+  title: { fontFamily: PosterFonts.condensedBold },
+  date: { fontFamily: PosterFonts.condensed },
   square: { width: '100%', aspectRatio: 1, overflow: 'hidden' },
   footnote: { position: 'absolute', right: 0, bottom: 0, color: '#333', backgroundColor: 'rgba(255,255,255,0.7)' },
   bottom: { flex: 1, justifyContent: 'flex-end', alignItems: 'flex-end' },
-  name: { color: INK, fontFamily: PosterFonts.condensedBold },
-  bib: { color: INK_MUTED, fontFamily: PosterFonts.condensed },
-  rule: { backgroundColor: INK },
+  name: { fontFamily: PosterFonts.condensedBold },
+  bib: { fontFamily: PosterFonts.condensed },
   stats: { flexDirection: 'row' },
   stat: { alignItems: 'center' },
-  statValue: { color: INK, fontFamily: PosterFonts.condensedBold },
-  statLabel: { color: INK_MUTED, fontFamily: PosterFonts.condensed },
+  statValue: { fontFamily: PosterFonts.condensedBold },
+  statLabel: { fontFamily: PosterFonts.condensed },
 });

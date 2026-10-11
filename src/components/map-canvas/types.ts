@@ -10,8 +10,13 @@ export type MapCanvasProps = {
   /** Saved view; null means fit the map to the route. */
   camera: MapCamera | null;
   onCameraChange: (camera: MapCamera) => void;
-  /** Width / height of the poster. */
+  /** Width / height of the canvas. */
   aspectRatio: number;
+  /**
+   * Space above and below the print area when the map is drawn bigger than the
+   * print (the full-screen editor), so auto-fit keeps the route inside the print.
+   */
+  fitInsets?: { top: number; bottom: number };
 };
 
 /** Breathing room around the route when auto-fitting, as a fraction of the shorter side. */

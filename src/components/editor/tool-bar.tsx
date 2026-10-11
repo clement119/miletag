@@ -1,6 +1,6 @@
 /**
- * Instagram Stories-style tool rail: a column of round icon buttons over the top
- * right of the preview. Tapping one opens its toolkit at the bottom; tapping the
+ * Instagram Stories-style tool rail: a column of see-through icon buttons over the
+ * top right of the preview. Tapping one opens its toolkit at the bottom; tapping the
  * open one again closes it.
  */
 
@@ -23,10 +23,13 @@ type Props<T extends string> = {
   /** The open tool, or null when the toolkit is closed. */
   value: T | null;
   onChange: (id: T | null) => void;
+  /** 'light' icons (with a soft shadow) over photos and maps, 'dark' over paper. */
+  tone?: 'light' | 'dark';
   style?: StyleProp<ViewStyle>;
 };
 
-export function ToolRail<T extends string>({ tools, value, onChange, style }: Props<T>) {
+export function ToolRail<T extends string>({ tools, value, onChange, tone = 'light', style }: Props<T>) {
+  const ink = tone === 'light' ? '#fff' : '#111';
   return (
     <View style={[styles.rail, style]} accessibilityRole="tablist">
       {tools.map((tool) => {
@@ -42,8 +45,13 @@ export function ToolRail<T extends string>({ tools, value, onChange, style }: Pr
               tap();
               onChange(selected ? null : tool.id);
             }}
-            style={[styles.button, selected && styles.selected]}>
-            <Ionicons name={tool.icon} size={20} color={selected ? '#000' : '#fff'} />
+            style={[styles.button, selected && { backgroundColor: ink }]}>
+            <Ionicons
+              name={tool.icon}
+              size={24}
+              color={selected ? (tone === 'light' ? '#000' : '#fff') : ink}
+              style={tone === 'light' && !selected && styles.shadow}
+            />
             {tool.dot && <View style={[styles.dot, { backgroundColor: tool.dot }]} />}
           </Pressable>
         );
@@ -54,15 +62,8 @@ export function ToolRail<T extends string>({ tools, value, onChange, style }: Pr
 
 const styles = StyleSheet.create({
   rail: { gap: 10, alignItems: 'center' },
-  button: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  selected: { backgroundColor: '#fff' },
+  button: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  shadow: { textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } },
   dot: {
     position: 'absolute',
     top: 0,

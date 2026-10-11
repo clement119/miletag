@@ -5,8 +5,14 @@
 
 import type { RouteTransform } from './design-document';
 
+export type Ink = { name: string; hex: string };
+
 export type DesignLook = {
+  /** Recommended text colours; the first is the default. */
+  inks: readonly Ink[];
   background: 'photo' | 'map';
+  /** Paper colour for designs printed on a plain sheet (null = full-bleed photo/map). */
+  paper: string | null;
   /** 'square': map/photo in a square window (Poster Classic). 'sheet': full-bleed under the text. */
   slot: 'square' | 'sheet';
   routeColor: string;
@@ -16,7 +22,18 @@ export type DesignLook = {
   route: RouteTransform;
 };
 
+// Text over photos: white reads on most shots, cream is softer, neon pops on dark
+// or B&W photos, black is for bright daylight photos.
+const PHOTO_INKS: readonly Ink[] = [
+  { name: 'White', hex: '#FFFFFF' },
+  { name: 'Cream', hex: '#F3E6CC' },
+  { name: 'Neon', hex: '#E4FF1A' },
+  { name: 'Black', hex: '#111111' },
+];
+
 const SHEET_PHOTO: DesignLook = {
+  inks: PHOTO_INKS,
+  paper: null,
   background: 'photo',
   slot: 'sheet',
   routeColor: '#FFFFFF',
@@ -27,7 +44,15 @@ const SHEET_PHOTO: DesignLook = {
 
 const LOOKS: Record<string, DesignLook> = {
   'poster-classic': {
+    // Ink on off-white paper.
+    inks: [
+      { name: 'Black', hex: '#141414' },
+      { name: 'Navy', hex: '#1F3A5F' },
+      { name: 'Brick', hex: '#8A2D1C' },
+      { name: 'Forest', hex: '#2F4A3A' },
+    ],
     background: 'map',
+    paper: '#FAFAF7',
     slot: 'square',
     routeColor: '#F5A623',
     scrim: 0,
@@ -38,6 +63,13 @@ const LOOKS: Record<string, DesignLook> = {
   editorial: { ...SHEET_PHOTO, route: { x: 0.7, y: 0.28, scale: 0.4, rotation: 0 } },
   'mono-tech': {
     ...SHEET_PHOTO,
+    // Terminal colours that hold up on a black-and-white photo.
+    inks: [
+      { name: 'Neon', hex: '#E4FF1A' },
+      { name: 'White', hex: '#FFFFFF' },
+      { name: 'Signal', hex: '#FF6B35' },
+      { name: 'Cyan', hex: '#7CF7FF' },
+    ],
     routeColor: '#E4FF1A',
     mono: true,
     scrim: 0.25,
@@ -48,6 +80,8 @@ const LOOKS: Record<string, DesignLook> = {
 
 /** Designs without their own layout yet use the generic full-bleed preview. */
 const GENERIC: DesignLook = {
+  inks: [{ name: 'Black', hex: '#111111' }],
+  paper: '#F4F2EE',
   background: 'map',
   slot: 'sheet',
   routeColor: '#F5A623',

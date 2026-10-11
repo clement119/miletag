@@ -6,6 +6,7 @@
  */
 
 import {
+  Blur,
   Canvas,
   ColorMatrix,
   DashPathEffect,
@@ -56,6 +57,14 @@ export type RouteCanvasProps = {
   defaultTransform?: RouteTransform;
   /** False for static thumbnails (the design gallery): no gestures, so lists scroll. */
   interactive?: boolean;
+  /** Explicit canvas size (the full-screen editor). Otherwise: full width, height from aspectRatio. */
+  size?: { width: number; height: number };
+  /**
+   * The print area inside the canvas, in canvas pixels. The photo covers it and the
+   * route is positioned relative to it; the canvas around it is the bleed shown on
+   * screen. Defaults to the whole canvas.
+   */
+  frame?: { x: number; y: number; width: number; height: number };
 };
 
 const MIN_SCALE = 0.15;
@@ -81,9 +90,16 @@ export default function RouteCanvas({
   adjust = 'route',
   defaultTransform = DEFAULT_ROUTE_TRANSFORM,
   interactive = true,
+  size: fixedSize,
+  frame,
 }: RouteCanvasProps) {
-  const [size, setSize] = useState({ width: 0, height: 0 });
-  const { width, height } = size;
+  const [measured, setMeasured] = useState({ width: 0, height: 0 });
+  const { width, height } = fixedSize ?? measured;
+  // Everything is laid out relative to the print area (fx, fy, fw, fh).
+  const fx = frame?.x ?? 0;
+  const fy = frame?.y ?? 0;
+  const fw = frame?.width ?? width;
+  const fh = frame?.height ?? height;
   const image = useImage(photo?.uri);
   const movingPhoto = adjust === 'photo' && !!photo && !!image;
   const photoDims = { width: photo?.width ?? 1, height: photo?.height ?? 1 };
@@ -101,15 +117,16 @@ export default function RouteCanvas({
     pscale.set(crop.scale);
   }, [crop.x, crop.y, crop.scale, px, py, pscale]);
 
-  // Drawn photo rect: cover the canvas, then zoom and offset.
+  // Drawn photo rect: cover the print area, then zoom and offset. It carries on past
+  // the print area into the on-screen bleed.
   const photoRect = useDerivedValue(() => {
     const photoAspect = photoDims.width / photoDims.height;
-    const canvasAspect = width / Math.max(1, height);
-    const coverW = photoAspect >= canvasAspect ? height * photoAspect : width;
-    const coverH = photoAspect >= canvasAspect ? height : width / photoAspect;
+    const frameAspect = fw / Math.max(1, fh);
+    const coverW = photoAspect >= frameAspect ? fh * photoAspect : fw;
+    const coverH = photoAspect >= frameAspect ? fh : fw / photoAspect;
     const w = coverW * pscale.get();
     const h = coverH * pscale.get();
-    return { x: width / 2 + px.get() * width - w / 2, y: height / 2 + py.get() * height - h / 2, w, h };
+    return { x: fx + fw / 2 + px.get() * fw - w / 2, y: fy + fh / 2 + py.get() * fh - h / 2, w, h };
   });
   const photoX = useDerivedValue(() => photoRect.get().x);
   const photoY = useDerivedValue(() => photoRect.get().y);
@@ -122,6 +139,13 @@ export default function RouteCanvas({
   const rotation = useSharedValue(transform.rotation);
   const start = useSharedValue({ ...transform });
 
+  useEffect(() => {
+    x.set(transform.x);
+    y.set(transform.y);
+    scale.set(transform.scale);
+    rotation.set(transform.rotation);
+  }, [transform.x, transform.y, transform.scale, transform.rotation, x, y, scale, rotation]);
+
   const path = useMemo(() => {
     const p = Skia.Path.Make();
     if (!points || points.length < 2) return p;
@@ -132,10 +156,10 @@ export default function RouteCanvas({
   }, [points]);
 
   const routeTransform = useDerivedValue(() => [
-    { translateX: x.get() * width },
-    { translateY: y.get() * height },
+    { translateX: fx + x.get() * fw },
+    { translateY: fy + y.get() * fh },
     { rotate: rotation.get() },
-    { scale: scale.get() * width },
+    { scale: scale.get() * fw },
   ]);
 
   // Stroke is in route-local units. Make it a fixed share of the canvas width (like the
@@ -155,7 +179,7 @@ export default function RouteCanvas({
 
   const setCrop = (next: PhotoCrop) => {
     'worklet';
-    const c = clampCrop(next, photoDims, width / Math.max(1, height));
+    const c = clampCrop(next, photoDims, fw / Math.max(1, fh));
     px.set(c.x);
     py.set(c.y);
     pscale.set(c.scale);
@@ -170,14 +194,14 @@ export default function RouteCanvas({
     .averageTouches(true)
     .onStart(begin)
     .onUpdate((e) => {
-      if (width === 0) return;
+      if (fw === 0) return;
       if (movingPhoto) {
         const s0 = pstart.get();
-        setCrop({ x: s0.x + e.translationX / width, y: s0.y + e.translationY / height, scale: s0.scale });
+        setCrop({ x: s0.x + e.translationX / fw, y: s0.y + e.translationY / fh, scale: s0.scale });
         return;
       }
-      x.set(start.get().x + e.translationX / width);
-      y.set(start.get().y + e.translationY / height);
+      x.set(start.get().x + e.translationX / fw);
+      y.set(start.get().y + e.translationY / fh);
     })
     .onEnd(() => (movingPhoto ? commitPhoto() : commit()));
 
@@ -224,17 +248,25 @@ export default function RouteCanvas({
   const gesture = Gesture.Simultaneous(pan, pinch, rotate, reset);
 
   const onLayout = (e: LayoutChangeEvent) => {
+    if (fixedSize) return;
     const w = e.nativeEvent.layout.width;
-    setSize({ width: w, height: w / aspectRatio });
+    setMeasured({ width: w, height: w / aspectRatio });
   };
 
-  const area = printableArea ? printableArea * width : 0;
+  const area = printableArea ? printableArea * fw : 0;
 
   const canvas = (
     <Canvas style={{ width, height }}>
       <Rect x={0} y={0} width={width} height={height} color="#2A2A2D" />
       {image ? (
         <Group>
+          {frame && (
+            // Full-screen editor: a blurred, enlarged copy fills any screen the photo doesn't reach.
+            <Image image={image} x={0} y={0} width={width} height={height} fit="cover">
+              <Blur blur={28} />
+              {photo?.mono && <ColorMatrix matrix={GREYSCALE} />}
+            </Image>
+          )}
           <Image image={image} x={photoX} y={photoY} width={photoW} height={photoH} fit="fill">
             {photo?.mono && <ColorMatrix matrix={GREYSCALE} />}
           </Image>
@@ -255,8 +287,8 @@ export default function RouteCanvas({
       )}
       {area > 0 && (
         <Rect
-          x={(width - area) / 2}
-          y={(height - area) / 2}
+          x={fx + (fw - area) / 2}
+          y={fy + (fh - area) / 2}
           width={area}
           height={area}
           color={Colors.textMuted}
@@ -279,10 +311,10 @@ export default function RouteCanvas({
   );
 
   return (
-    <View onLayout={onLayout} style={styles.wrapper}>
+    <View onLayout={onLayout} style={fixedSize ?? styles.wrapper}>
       {width > 0 && (interactive ? <GestureDetector gesture={gesture}>{canvas}</GestureDetector> : canvas)}
     </View>
   );
 }
 
-const styles = StyleSheet.create({ wrapper: { width: '100%', borderRadius: 4, overflow: 'hidden' } });
+const styles = StyleSheet.create({ wrapper: { width: '100%', overflow: 'hidden' } });

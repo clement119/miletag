@@ -22,16 +22,20 @@ export function MapCanvas({
   camera,
   onCameraChange,
   aspectRatio,
+  fitInsets,
 }: MapCanvasProps) {
   const cameraRef = useRef<CameraRef>(null);
   const [width, setWidth] = useState(0);
   // maplibre-react-native pins an older copy of the style-spec types; the JSON is identical.
-  const style = useMemo(
-    () => buildMapStyle(styleId, layers) as unknown as MapProps['mapStyle'],
-    [styleId, layers],
-  );
+  const style = useMemo(() => buildMapStyle(styleId, layers) as unknown as MapProps['mapStyle'], [styleId, layers]);
 
   const padding = width * FIT_PADDING;
+  const fitPadding = {
+    top: padding + (fitInsets?.top ?? 0),
+    right: padding,
+    bottom: padding + (fitInsets?.bottom ?? 0),
+    left: padding,
+  };
   const bounds = useMemo(() => {
     if (!geo) return null;
     const [[w, s], [e, n]] = geoBounds(geo);
@@ -41,12 +45,10 @@ export function MapCanvas({
   // A newly imported route re-frames the map unless the user has set a view.
   useEffect(() => {
     if (bounds && !camera && width > 0) {
-      cameraRef.current?.fitBounds(bounds, {
-        padding: { top: padding, right: padding, bottom: padding, left: padding },
-        duration: 600,
-      });
+      cameraRef.current?.fitBounds(bounds, { padding: fitPadding, duration: 600 });
     }
-  }, [bounds, camera, padding, width]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fitPadding is derived from padding/fitInsets
+  }, [bounds, camera, padding, width, fitInsets?.top, fitInsets?.bottom]);
 
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
 
@@ -70,7 +72,7 @@ export function MapCanvas({
               camera
                 ? { center: camera.center, zoom: camera.zoom, bearing: camera.bearing }
                 : bounds
-                  ? { bounds, padding: { top: padding, right: padding, bottom: padding, left: padding } }
+                  ? { bounds, padding: fitPadding }
                   : { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM }
             }
           />
@@ -90,6 +92,4 @@ export function MapCanvas({
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: { width: '100%', overflow: 'hidden', borderRadius: 4 },
-});
+const styles = StyleSheet.create({ wrapper: { width: '100%', overflow: 'hidden' } });

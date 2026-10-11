@@ -10,7 +10,7 @@ import { DEFAULT_PHOTO_CROP } from './photo';
 import type { PhotoAsset, PhotoCrop } from './photo';
 import type { LngLat, XY } from './route/geometry';
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export type Runner = {
   name: string;
@@ -58,6 +58,10 @@ export type DesignDocument = {
     medal: { enabled: boolean; diameterMm?: number; ribbon: 'visible' | 'folded' | 'removed' };
   };
   background: Background;
+  /** The background not in use, kept so switching Photo ↔ Map never loses the user's photo or map view. */
+  backgroundStash: { photo?: Extract<Background, { type: 'photo' }>; map?: Extract<Background, { type: 'map' }> };
+  /** Text colour, one of the design's recommended inks (design-looks.ts). */
+  ink: string;
   runners: Runner[];
   route: {
     points: XY[] | null; // normalised 0..1, used in photo mode
@@ -77,6 +81,18 @@ export type DesignDocument = {
 };
 
 export const DEFAULT_ROUTE_TRANSFORM: RouteTransform = { x: 0.5, y: 0.42, scale: 0.75, rotation: 0 };
+
+/**
+ * Switches the background type, keeping the one being left in the stash and
+ * restoring the stashed one if there is one (so a photo is never lost).
+ */
+export function switchBackground(doc: DesignDocument, type: Background['type']): DesignDocument {
+  if (doc.background.type === type) return doc;
+  const current = doc.background;
+  const stash = { ...doc.backgroundStash, [current.type]: current };
+  const restored = type === 'photo' ? doc.backgroundStash.photo : doc.backgroundStash.map;
+  return { ...doc, background: restored ?? defaultBackground(doc.designId, type), backgroundStash: stash };
+}
 
 /** A fresh background of the given type, styled for the design. */
 export function defaultBackground(designId: string, type: Background['type']): Background {
@@ -108,6 +124,8 @@ export function createDesignDocument(designId: string, runnerCount: RunnerCount)
       medal: { enabled: false, ribbon: 'visible' },
     },
     background: defaultBackground(designId, look.background),
+    backgroundStash: {},
+    ink: look.inks[0].hex,
     runners: Array.from({ length: runnerCount }, () => ({ name: '' })),
     route: {
       points: null,

@@ -26,8 +26,11 @@ export type PosterProps = {
   doc: DesignDocument;
   /** Width / height of the sheet. */
   aspectRatio: number;
-  /** The map or photo canvas. */
-  children: ReactNode;
+  /**
+   * The map or photo canvas. Omitted by the full-screen editor, which draws the
+   * canvas behind the whole screen; the layout is then just its text, transparent.
+   */
+  children?: ReactNode;
   /** Small print in the image corner, e.g. map attribution. */
   footnote?: string;
 };
@@ -57,6 +60,12 @@ export function Sheet({
       ) : null}
     </View>
   );
+}
+
+/** `#RRGGBB` at the given opacity, for shades derived from the chosen ink. */
+export function alpha(hex: string, opacity: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${opacity})`;
 }
 
 /** Text layer over a full-bleed canvas. Touches pass through to the canvas below. */
@@ -120,7 +129,8 @@ export function posterData(doc: DesignDocument) {
 }
 
 const styles = StyleSheet.create({
-  sheet: { width: '100%', overflow: 'hidden' },
+  // box-none: the sheet itself never takes touches, so gestures reach the canvas.
+  sheet: { width: '100%', overflow: 'hidden', pointerEvents: 'box-none' },
   passThrough: { pointerEvents: 'none' },
   footnote: {
     position: 'absolute',

@@ -31,15 +31,16 @@ export function MapCanvas({
   camera,
   onCameraChange,
   aspectRatio,
+  fitInsets,
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const style = useMemo(() => buildMapStyle(styleId, layers), [styleId, layers]);
 
   // Latest values for map event handlers, which are bound once.
-  const latest = useRef({ geo, routeColor, onCameraChange });
+  const latest = useRef({ geo, routeColor, onCameraChange, fitInsets });
   useEffect(() => {
-    latest.current = { geo, routeColor, onCameraChange };
+    latest.current = { geo, routeColor, onCameraChange, fitInsets };
   });
 
   // Re-adds the route after every style load: setStyle() drops custom layers.
@@ -62,8 +63,14 @@ export function MapCanvas({
     const g = latest.current.geo;
     if (!g) return;
     const { clientWidth, clientHeight } = map.getContainer();
+    const pad = Math.min(clientWidth, clientHeight) * FIT_PADDING;
     map.fitBounds(geoBounds(g), {
-      padding: Math.min(clientWidth, clientHeight) * FIT_PADDING,
+      padding: {
+        top: pad + (latest.current.fitInsets?.top ?? 0),
+        right: pad,
+        bottom: pad + (latest.current.fitInsets?.bottom ?? 0),
+        left: pad,
+      },
       bearing: map.getBearing(),
       animate,
       duration: 600,
@@ -128,6 +135,4 @@ export function MapCanvas({
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: { width: '100%', overflow: 'hidden', borderRadius: 4 },
-});
+const styles = StyleSheet.create({ wrapper: { width: '100%', overflow: 'hidden' } });
