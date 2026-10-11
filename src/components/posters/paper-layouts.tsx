@@ -281,7 +281,7 @@ export function Swiss({ doc, aspectRatio, children, footnote }: PosterProps) {
                       {r.name}
                     </Text>
                   </Editable>
-                  <InlineFields style={label} parts={['BIB ', { text: r.bib, field: 'bib:0' }]} />
+                  <InlineFields style={label} parts={['#', { text: r.bib, field: 'bib:0' }]} />
                 </View>
                 <View style={[styles.fill, styles.boxNone]}>
                   <Text style={label}>TIME</Text>

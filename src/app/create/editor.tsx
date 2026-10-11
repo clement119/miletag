@@ -11,7 +11,7 @@
  */
 
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Redirect, router } from 'expo-router';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -43,7 +43,7 @@ import { EditableContext, isDialField, type TextField } from '@/components/poste
 import { RouteCanvas } from '@/components/route-canvas';
 import { AppText } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { editorAspect, getDesign } from '@/domain/catalog';
+import { editorAspect, getDesign, PAPER_MM } from '@/domain/catalog';
 import { switchBackground, type Background } from '@/domain/design-document';
 import { getLook, hasLayout } from '@/domain/design-looks';
 import { DEMO_PHOTO, withSamples } from '@/domain/demo';
@@ -116,6 +116,9 @@ export default function Editor() {
   const [runnerIndex, setRunnerIndex] = useState(0);
   const window = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  // Two passes over the same design: the social crop (4:5) first; after "Yes, get it
+  // made" on the share screen, the print crop (A-series) to fit it before checkout.
+  const printFit = useLocalSearchParams<{ fit?: string }>().fit === 'print';
 
   // Text zoom: the field being edited (in unzoomed screen coordinates) and the stage zoom.
   const [fieldRect, setFieldRect] = useState<Rect | null>(null);
@@ -149,8 +152,12 @@ export default function Editor() {
 
   if (!doc) return <Redirect href="/create/runners" />;
   const design = getDesign(doc.designId);
-  // Social-media crop (Instagram post, 4:5) for now; see SOCIAL_ASPECT.
-  const aspect = editorAspect(design);
+  const paper = PAPER_MM[doc.order.size];
+  const aspect = printFit
+    ? design?.orientation === 'landscape'
+      ? paper.h / paper.w
+      : paper.w / paper.h
+    : editorAspect(design);
   const slotAspect = canvasAspect(doc.designId, aspect);
   const bg = doc.background;
 
@@ -477,8 +484,9 @@ export default function Editor() {
       setTool('background');
       setNotice('Upload your photo, or switch to Map.');
     } else {
-      // Print quality is checked on "Get it made", per size.
-      router.push('/create/format');
+      // Social crop → share (with the offer to print). Print crop → frame, add-ons and
+      // checkout; print quality is checked there, per size.
+      router.push(printFit ? '/create/format' : '/create/share');
     }
   };
 
@@ -810,6 +818,13 @@ export default function Editor() {
         style={[styles.back, { top: insets.top + Spacing.two }]}>
         <Ionicons name="chevron-back" size={28} color={iconColour} style={shadow} />
       </Pressable>
+      {printFit && (
+        <AppText
+          variant="caption"
+          style={[styles.fitLabel, { top: insets.top + Spacing.two + 8, color: iconColour }, shadow]}>
+          {`Print crop · ${doc.order.size}`}
+        </AppText>
+      )}
       <ToolRail
         tools={tools}
         value={activeTool}
@@ -964,6 +979,7 @@ const styles = StyleSheet.create({
   uploadLayer: { position: 'absolute', pointerEvents: 'box-none' },
   back: { position: 'absolute', left: Spacing.two, padding: Spacing.one },
   rail: { position: 'absolute', right: Spacing.three },
+  fitLabel: { position: 'absolute', left: 56, fontWeight: '600', pointerEvents: 'none' },
   shadow: { textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   // Only the controls themselves take a touch: text under the band stays tappable.
