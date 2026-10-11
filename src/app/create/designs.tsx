@@ -3,9 +3,11 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 
-import { AppText, Card, Chip, Screen, tap } from '@/components/ui';
+import { DesignPreview } from '@/components/design-preview';
+import { AppText, Chip, Screen, tap } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { designsFor } from '@/domain/catalog';
+import { getLook, hasLayout } from '@/domain/design-looks';
 import { useDesign } from '@/state/design-store';
 
 type Filter = 'all' | 'medal' | '3d';
@@ -32,38 +34,45 @@ export default function Designs() {
         ))}
       </View>
       {designs.length === 0 && <AppText muted>No designs match this filter.</AppText>}
-      {designs.map((d, i) => (
-        <Animated.View key={d.id} entering={FadeInUp.delay(i * 50).duration(220)}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              tap();
-              startDesign(d.id);
-              router.push('/create/editor');
-            }}>
-            <Card>
+      <View style={styles.grid}>
+        {designs.map((d, i) => (
+          <Animated.View key={d.id} entering={FadeInUp.delay(i * 50).duration(220)} style={styles.cell}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${d.name}. ${d.description}`}
+              onPress={() => {
+                tap();
+                startDesign(d.id);
+                router.push('/create/editor');
+              }}
+              style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+              <DesignPreview design={d} runnerCount={runnerCount} />
               <View style={styles.titleRow}>
-                <AppText variant="title" style={{ flex: 1 }}>
+                <AppText style={styles.name} numberOfLines={1}>
                   {d.name}
                 </AppText>
                 {d.supportsMedal && <AppText style={styles.badge}>MEDAL</AppText>}
               </View>
-              <AppText muted>{d.description}</AppText>
-            </Card>
-          </Pressable>
-        </Animated.View>
-      ))}
+              <AppText variant="caption" numberOfLines={2}>
+                {hasLayout(d.id)
+                  ? `${getLook(d.id).background === 'photo' ? 'Your photo. ' : 'Map or photo. '}${d.description}`
+                  : `Layout in progress. ${d.description}`}
+              </AppText>
+            </Pressable>
+          </Animated.View>
+        ))}
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  badge: {
-    color: Colors.accent,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: Spacing.four },
+  cell: { width: '47%' },
+  card: { gap: Spacing.one },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginTop: Spacing.one },
+  name: { flex: 1, fontWeight: '700' },
+  badge: { color: Colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
 });

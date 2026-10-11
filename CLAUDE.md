@@ -38,7 +38,11 @@ Miletag turns a race into wall art. Free: live editor and preview, drag the GPX 
 - Ported SmoothUI components: `animated-tabs.tsx` (segment), `animated-toggle.tsx`, `map-style-carousel.tsx` (coverflow).
 - **Photo backgrounds (built):** `src/domain/import-photo.ts` (expo-image-picker, full-quality original + ≤2048 px preview via expo-image-manipulator), `src/domain/photo.ts` (crop model, `clampCrop`, `photoDpi`, `gradeDpi`, `photoSlotMm`). The Skia `route-canvas` draws the photo (cover-fit, drag/pinch crop, B&W, scrim) with a "Move photo / Move route" switch. `components/photo-quality.tsx` = DPI traffic light (PRD §7.2) on the editor and the size picker; red needs "Print it anyway" (`lowResAckDpi`, covers that DPI or better) or checkout is blocked. Schema v5.
 - **Editor UI (built, Instagram style):** `src/app/create/editor.tsx` is one non-scrolling screen (header hidden in `_layout`): top bar with Next, poster fitted to the stage, fixed-height tool panel, icon `ToolBar` (`components/editor/tool-bar.tsx`, Ionicons from `@expo/vector-icons`). Tools: Background, Adjust (photo) / Layers (map), Route, Race, Runner, Quality (photo only, traffic-light dot). Next is never greyed out; it opens the tool that fixes what's missing.
-- **Poster Classic layout (built):** `components/posters/poster-classic.tsx`. Sizes are fractions of sheet width; square = `POSTER_CLASSIC_SQUARE` (0.8 of paper width, shared with the DPI math). Title and name are one line and shrink to fit (no reflow). Other designs still use the generic full-bleed preview.
+- **Design layouts (built, matched to the owner's samples in `docs/samples/`):** `components/posters/` — `poster-classic.tsx` (Paris sample), `photo-layouts.tsx` (Big Time, Editorial, Mono Tech, Duo), `common.tsx` (Sheet, Overlay, `fitFont`, `splitTitle`, `posterData`, `PosterFonts`), `index.tsx` (`Poster` picks the layout; `canvasAspect`). All sizes are fractions of sheet width; text is one line per field and shrinks to fit (no reflow, print-safe). Per-design defaults (photo/map, square/full-bleed, route colour and position, darken, B&W) in `src/domain/design-looks.ts`. Crew Grid and the 3 medal designs have **no sample and no layout yet** (generic preview, gallery says "Layout in progress").
+- **Samples are reference only:** they show other people's photos and another brand's designs. Never ship them or use them in marketing.
+- **Fonts:** Barlow Condensed (Poster Classic), Inter (Big Time/Editorial/Duo), Space Mono (Mono Tech) via `@expo-google-fonts/*`, loaded in `_layout.tsx`.
+- **Gallery (`create/designs.tsx`):** 2-column grid of live thumbnails (`components/design-preview.tsx`) rendering our layouts with `src/domain/demo.ts` data, a generated demo photo (`assets/images/demo/demo-city.jpg`, ours) and a map tile captured from our own Graphite style (`demo-map-graphite.jpg`, OSM credit baked in).
+- **Race fields:** `text = { title, date, city, country }` (schema v6). Date is free text, parsed by `parseRaceDate` (day-first) and formatted per design; unparseable dates print as typed. Next requires race name, date, and every runner's name + chip time.
 - Web needs `public/canvaskit.wasm` and `public/maplibre/maplibre-gl-worker.mjs`, copied by `scripts/copy-web-assets.js` on `npm install` (gitignored).
 - Verified: typecheck, lint, expo-doctor 21/21, iOS + Android JS bundles compile, web flow tested in headless Chromium. **Not yet run on a real device.**
 - **EAS linked:** project `@clement119s-team/miletag` (id `69662fba-f6ff-463f-9947-84a4efadf3b3`). `EXPO_TOKEN` is a robot token on that account.
@@ -52,10 +56,11 @@ Miletag turns a race into wall art. Free: live editor and preview, drag the GPX 
 - Skia on web loads via `WithSkiaWeb` (`route-canvas/index.web.tsx`).
 - `eas init` writes the *resolved* config into app.json; check the diff (it added RECORD_AUDIO from expo-image-picker, now disabled via `microphonePermission: false`).
 - Prettier: no config in repo. Match style with `--single-quote --print-width 120 --bracket-same-line --trailing-comma all --object-wrap collapse`, and only on files you changed.
+- Static web export pre-renders pages in Node: anything that loads CanvasKit must skip rendering when `typeof window === 'undefined'` (see `route-canvas/index.web.tsx`).
 - Playwright: launch with `executablePath: '/opt/pw-browsers/chromium'`; never `playwright install`.
 
 ## Next steps
 1. Install the Android dev build on a real phone and test; iOS once Clement has an Apple Developer account.
-2. **Waiting on Clement:** the 5 design sample images (PRD "image 1–5") were shared in an earlier chat and never committed. Ask for them in `docs/samples/`; use them for the design gallery previews and for building the other layouts.
+2. **Ask Clement:** 3–4 of his own race photos (he owns the rights) to replace the generated demo photo in the gallery; samples for Crew Grid / Medal Classic / Medal Side / Medal Crew.
 3. Free watermarked social export (Poster Classic first), then the other 8 design layouts.
 4. Checkout with FPX / DuitNow / e-wallets; then backend (Supabase), Crew Copy Link, server print + 3D file generation, Production Console lite.

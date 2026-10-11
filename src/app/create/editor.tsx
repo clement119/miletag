@@ -22,21 +22,15 @@ import { AnimatedTabs } from '@/components/animated-tabs';
 import { ToolBar, type ToolItem } from '@/components/editor/tool-bar';
 import { MapCanvas } from '@/components/map-canvas';
 import { GRADE_COLOUR, getPhotoQuality, PhotoQualityNotice } from '@/components/photo-quality';
-import { PosterClassic } from '@/components/posters/poster-classic';
+import { canvasAspect, Poster } from '@/components/posters';
 import { RouteCanvas } from '@/components/route-canvas';
 import { AppText, Button, Chip, tap } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { getDesign, PAPER_MM } from '@/domain/catalog';
-import type { Background } from '@/domain/design-document';
+import { defaultBackground, type Background } from '@/domain/design-document';
+import { getLook } from '@/domain/design-looks';
 import { pickPhoto } from '@/domain/import-photo';
-import {
-  DEFAULT_LAYER_TOGGLES,
-  getMapStyle,
-  MAP_ATTRIBUTION,
-  MAP_STYLES,
-  type MapLayerToggles,
-  type MapStyleId,
-} from '@/domain/map-styles';
+import { getMapStyle, MAP_ATTRIBUTION, MAP_STYLES, type MapLayerToggles, type MapStyleId } from '@/domain/map-styles';
 import { DEFAULT_PHOTO_CROP, SCRIM_LEVELS } from '@/domain/photo';
 import { formatDuration, parseDuration } from '@/domain/race';
 import { GpxParseError } from '@/domain/route/gpx';
@@ -61,9 +55,7 @@ export default function Editor() {
   const design = getDesign(doc.designId);
   const paper = PAPER_MM[doc.order.size];
   const aspect = design?.orientation === 'landscape' ? paper.h / paper.w : paper.w / paper.h;
-  const isPosterClassic = doc.designId === 'poster-classic';
-  // Poster Classic frames the map or photo in a square; other designs are full-bleed for now.
-  const slotAspect = isPosterClassic ? 1 : aspect;
+  const slotAspect = canvasAspect(doc.designId, aspect);
   const bg = doc.background;
   const quality = getPhotoQuality(doc);
 
@@ -125,14 +117,7 @@ export default function Editor() {
   };
 
   const setBackgroundType = (type: Background['type']) =>
-    update((d) => {
-      if (d.background.type === type) return d;
-      const background: Background =
-        type === 'map'
-          ? { type: 'map', styleId: 'graphite', camera: null, layers: { ...DEFAULT_LAYER_TOGGLES } }
-          : { type: 'photo', photo: null, crop: { ...DEFAULT_PHOTO_CROP }, scrim: 0, mono: false, lowResAckDpi: null };
-      return { ...d, background };
-    });
+    update((d) => (d.background.type === type ? d : { ...d, background: defaultBackground(d.designId, type) }));
 
   const choosePhoto = async () => {
     setNotice(null);
@@ -172,14 +157,25 @@ export default function Editor() {
         : d,
     );
 
+  const setText = (patch: Partial<typeof doc.text>) => update((d) => ({ ...d, text: { ...d.text, ...patch } }));
+
   const setRunner = (index: number, patch: Partial<(typeof doc.runners)[number]>) =>
     update((d) => ({ ...d, runners: d.runners.map((r, i) => (i === index ? { ...r, ...patch } : r)) }));
 
   // Next never sits greyed out: it opens whichever tool fixes what's missing.
   const next = () => {
+    // Every design prints each runner's name and time.
+    const firstRunner = doc.runners.findIndex((r) => r.name.trim() === '' || !r.timeSeconds);
     if (!doc.route.geo) {
       setTool('route');
       setNotice('Add your GPX route first.');
+    } else if (!doc.text.title.trim() || !doc.text.date.trim()) {
+      setTool('race');
+      setNotice('Add the race name and date. They print on the poster.');
+    } else if (firstRunner >= 0) {
+      setTool('runner');
+      setRunnerIndex(firstRunner);
+      setNotice('Add the name and chip time. They print on the poster.');
     } else if (bg.type === 'photo' && !bg.photo) {
       setTool('background');
       setNotice('Choose a photo, or switch to Map.');
@@ -213,6 +209,7 @@ export default function Editor() {
         strokeColor={doc.route.stroke.color}
         aspectRatio={slotAspect}
         onTransformEnd={(transform) => update((d) => ({ ...d, route: { ...d.route, transform } }))}
+        defaultTransform={getLook(doc.designId).route}
         photo={
           bg.photo
             ? {
@@ -230,20 +227,10 @@ export default function Editor() {
       />
     );
 
-  const mapStyle = bg.type === 'map' ? getMapStyle(bg.styleId) : null;
-  const poster = isPosterClassic ? (
-    <PosterClassic doc={doc} aspectRatio={aspect} footnote={bg.type === 'map' ? MAP_ATTRIBUTION : undefined}>
+  const poster = (
+    <Poster doc={doc} aspectRatio={aspect} footnote={bg.type === 'map' ? MAP_ATTRIBUTION : undefined}>
       {canvas}
-    </PosterClassic>
-  ) : (
-    <View style={styles.genericPoster}>
-      {canvas}
-      {doc.text.title !== '' && (
-        <AppText style={[styles.genericTitle, mapStyle && { color: mapStyle.inkColor }]} numberOfLines={1}>
-          {doc.text.title.toUpperCase()}
-        </AppText>
-      )}
-    </View>
+    </Poster>
   );
 
   const hint =
@@ -363,13 +350,29 @@ export default function Editor() {
         <Input
           placeholder="Race name, e.g. KL Marathon"
           value={doc.text.title}
-          onChangeText={(title) => update((d) => ({ ...d, text: { ...d.text, title } }))}
+          onChangeText={(title) => setText({ title })}
         />
-        <Input
-          placeholder="Date, e.g. 5 October 2026"
-          value={doc.text.subtitle}
-          onChangeText={(subtitle) => update((d) => ({ ...d, text: { ...d.text, subtitle } }))}
-        />
+        <View style={styles.inputRow}>
+          <Input
+            placeholder="Date"
+            value={doc.text.date}
+            onChangeText={(date) => setText({ date })}
+            style={styles.flex}
+          />
+          <Input
+            placeholder="City"
+            value={doc.text.city}
+            onChangeText={(city) => setText({ city })}
+            style={styles.flex}
+          />
+          <Input
+            placeholder="Country"
+            value={doc.text.country}
+            onChangeText={(country) => setText({ country })}
+            style={styles.flex}
+          />
+        </View>
+        <AppText variant="caption">Date like 5 October 2026 or 05/10/2026. City and country are optional.</AppText>
       </>
     ),
     runner: () => {
@@ -540,6 +543,4 @@ const styles = StyleSheet.create({
   swatchSelected: { borderColor: Colors.text },
   swatchRoute: { width: 26, height: 18, borderRadius: 9, borderWidth: 2.5 },
   swatchLabel: { fontSize: 11, color: Colors.textMuted },
-  genericPoster: { backgroundColor: '#F4F2EE', padding: Spacing.two, borderRadius: 4, gap: Spacing.one },
-  genericTitle: { color: '#111', fontWeight: '800', fontSize: 14, letterSpacing: 1 },
 });

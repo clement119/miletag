@@ -13,6 +13,8 @@ import type { RouteCanvasProps } from './route-canvas-impl';
 export type { RouteCanvasProps } from './route-canvas-impl';
 
 export function RouteCanvas(props: RouteCanvasProps) {
+  // Static export pre-renders pages in Node, where CanvasKit can't load. Skia mounts in the browser.
+  if (typeof window === 'undefined') return <ActivityIndicator color={Colors.accent} />;
   return (
     <WithSkiaWeb
       opts={{ locateFile: () => '/canvaskit.wasm' }}

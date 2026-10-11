@@ -3,18 +3,14 @@
  * device preview, the server print render and the 3D model generator.
  */
 
-import type {
-  FilamentColour,
-  Format,
-  FrameColour,
-  PaperSize,
-  RunnerCount,
-} from './catalog';
+import type { FilamentColour, Format, FrameColour, PaperSize, RunnerCount } from './catalog';
+import { getLook } from './design-looks';
 import { DEFAULT_LAYER_TOGGLES, type MapLayerToggles, type MapStyleId } from './map-styles';
+import { DEFAULT_PHOTO_CROP } from './photo';
 import type { PhotoAsset, PhotoCrop } from './photo';
 import type { LngLat, XY } from './route/geometry';
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export type Runner = {
   name: string;
@@ -33,11 +29,7 @@ export type RouteTransform = {
 };
 
 /** Saved map view. Null until the user has framed the map (we auto-fit to the route). */
-export type MapCamera = {
-  center: LngLat;
-  zoom: number;
-  bearing: number;
-};
+export type MapCamera = { center: LngLat; zoom: number; bearing: number };
 
 export type Background =
   | { type: 'map'; styleId: MapStyleId; camera: MapCamera | null; layers: MapLayerToggles }
@@ -74,13 +66,35 @@ export type DesignDocument = {
     stroke: { width: number; color: string };
     markers: boolean;
   };
-  text: { title: string; subtitle: string };
+  text: {
+    title: string;
+    /** Free text as typed ("5 October 2026", "05/10/2026"); each design formats it. */
+    date: string;
+    city: string;
+    country: string;
+  };
   export: { watermark: boolean };
 };
 
 export const DEFAULT_ROUTE_TRANSFORM: RouteTransform = { x: 0.5, y: 0.42, scale: 0.75, rotation: 0 };
 
+/** A fresh background of the given type, styled for the design. */
+export function defaultBackground(designId: string, type: Background['type']): Background {
+  const look = getLook(designId);
+  return type === 'map'
+    ? { type: 'map', styleId: 'graphite', camera: null, layers: { ...DEFAULT_LAYER_TOGGLES } }
+    : {
+        type: 'photo',
+        photo: null,
+        crop: { ...DEFAULT_PHOTO_CROP },
+        scrim: look.scrim,
+        mono: look.mono,
+        lowResAckDpi: null,
+      };
+}
+
 export function createDesignDocument(designId: string, runnerCount: RunnerCount): DesignDocument {
+  const look = getLook(designId);
   return {
     schemaVersion: SCHEMA_VERSION,
     designId,
@@ -93,17 +107,16 @@ export function createDesignDocument(designId: string, runnerCount: RunnerCount)
       route3d: { enabled: false, color: 'orange', printedLineBelow: true },
       medal: { enabled: false, ribbon: 'visible' },
     },
-    background: { type: 'map', styleId: 'graphite', camera: null, layers: { ...DEFAULT_LAYER_TOGGLES } },
+    background: defaultBackground(designId, look.background),
     runners: Array.from({ length: runnerCount }, () => ({ name: '' })),
     route: {
       points: null,
       geo: null,
-      // Poster Classic's photo is a square, so centre the route in it.
-      transform: { ...DEFAULT_ROUTE_TRANSFORM, ...(designId === 'poster-classic' && { y: 0.5 }) },
-      stroke: { width: 2.5, color: '#F5A623' },
+      transform: { ...look.route },
+      stroke: { width: 2.5, color: look.routeColor },
       markers: true,
     },
-    text: { title: '', subtitle: '' },
+    text: { title: '', date: '', city: '', country: '' },
     export: { watermark: true },
   };
 }

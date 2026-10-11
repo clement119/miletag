@@ -4,6 +4,7 @@
  */
 
 import { getDesign, PAPER_MM, type PaperSize } from './catalog';
+import { getLook } from './design-looks';
 
 export type PhotoAsset = {
   /** Original file. This is what gets uploaded for the print render. */
@@ -39,7 +40,7 @@ export const POSTER_CLASSIC_SQUARE = 0.8;
 /** Printed size of the photo slot, in mm. */
 export function photoSlotMm(designId: string, size: PaperSize): { w: number; h: number } {
   const paper = PAPER_MM[size];
-  if (designId === 'poster-classic') {
+  if (getLook(designId).slot === 'square') {
     const side = paper.w * POSTER_CLASSIC_SQUARE;
     return { w: side, h: side };
   }

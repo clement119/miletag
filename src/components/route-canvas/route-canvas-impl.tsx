@@ -29,7 +29,15 @@ import { DEFAULT_ROUTE_TRANSFORM, type RouteTransform } from '@/domain/design-do
 import { clampCrop, DEFAULT_PHOTO_CROP, type PhotoCrop } from '@/domain/photo';
 import type { XY } from '@/domain/route/geometry';
 
-export type CanvasPhoto = { uri: string; width: number; height: number; crop: PhotoCrop; scrim: number; mono: boolean };
+export type CanvasPhoto = {
+  /** File URI, or a bundled asset (`require`) for gallery demos. */
+  uri: string | number;
+  width: number;
+  height: number;
+  crop: PhotoCrop;
+  scrim: number;
+  mono: boolean;
+};
 
 export type RouteCanvasProps = {
   points: XY[] | null;
@@ -44,11 +52,17 @@ export type RouteCanvasProps = {
   onPhotoCropEnd?: (crop: PhotoCrop) => void;
   /** What gestures move. Falls back to the route when there is no photo. */
   adjust?: 'route' | 'photo';
+  /** Where double-tap puts the route back. */
+  defaultTransform?: RouteTransform;
+  /** False for static thumbnails (the design gallery): no gestures, so lists scroll. */
+  interactive?: boolean;
 };
 
 const MIN_SCALE = 0.15;
 const MAX_SCALE = 1.6;
 const GRID_LINES = 12;
+/** Route line width as a fraction of the canvas width. */
+const ROUTE_STROKE = 0.008;
 
 // Rec. 709 luminance, for the black-and-white option.
 const GREYSCALE = [
@@ -65,6 +79,8 @@ export default function RouteCanvas({
   photo,
   onPhotoCropEnd,
   adjust = 'route',
+  defaultTransform = DEFAULT_ROUTE_TRANSFORM,
+  interactive = true,
 }: RouteCanvasProps) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const { width, height } = size;
@@ -122,8 +138,9 @@ export default function RouteCanvas({
     { scale: scale.get() * width },
   ]);
 
-  // Stroke is in route-local units; keep it ~3px on screen whatever the scale.
-  const strokeWidth = useDerivedValue(() => 3 / Math.max(1, width * scale.get()));
+  // Stroke is in route-local units. Make it a fixed share of the canvas width (like the
+  // samples) so thumbnails, the editor and the print all show the same line weight.
+  const strokeWidth = useDerivedValue(() => ROUTE_STROKE / Math.max(0.01, scale.get()));
 
   const commit = () => {
     'worklet';
@@ -197,11 +214,11 @@ export default function RouteCanvas({
         if (onPhotoCropEnd) scheduleOnRN(onPhotoCropEnd, { ...DEFAULT_PHOTO_CROP });
         return;
       }
-      x.set(withSpring(DEFAULT_ROUTE_TRANSFORM.x, Motion.spring));
-      y.set(withSpring(DEFAULT_ROUTE_TRANSFORM.y, Motion.spring));
-      scale.set(withSpring(DEFAULT_ROUTE_TRANSFORM.scale, Motion.spring));
-      rotation.set(withSpring(DEFAULT_ROUTE_TRANSFORM.rotation, Motion.spring));
-      scheduleOnRN(onTransformEnd, { ...DEFAULT_ROUTE_TRANSFORM });
+      x.set(withSpring(defaultTransform.x, Motion.spring));
+      y.set(withSpring(defaultTransform.y, Motion.spring));
+      scale.set(withSpring(defaultTransform.scale, Motion.spring));
+      rotation.set(withSpring(defaultTransform.rotation, Motion.spring));
+      scheduleOnRN(onTransformEnd, { ...defaultTransform });
     });
 
   const gesture = Gesture.Simultaneous(pan, pinch, rotate, reset);
@@ -213,59 +230,57 @@ export default function RouteCanvas({
 
   const area = printableArea ? printableArea * width : 0;
 
+  const canvas = (
+    <Canvas style={{ width, height }}>
+      <Rect x={0} y={0} width={width} height={height} color="#2A2A2D" />
+      {image ? (
+        <Group>
+          <Image image={image} x={photoX} y={photoY} width={photoW} height={photoH} fit="fill">
+            {photo?.mono && <ColorMatrix matrix={GREYSCALE} />}
+          </Image>
+          {!!photo?.scrim && <Rect x={0} y={0} width={width} height={height} color={`rgba(0,0,0,${photo.scrim})`} />}
+        </Group>
+      ) : (
+        // Placeholder grid until a photo is chosen.
+        Array.from({ length: GRID_LINES }, (_, i) => {
+          const gx = ((i + 1) / (GRID_LINES + 1)) * width;
+          const gy = ((i + 1) / (GRID_LINES + 1)) * height;
+          return (
+            <Group key={i}>
+              <Line p1={vec(gx, 0)} p2={vec(gx, height)} color="#38383C" strokeWidth={1} />
+              <Line p1={vec(0, gy)} p2={vec(width, gy)} color="#38383C" strokeWidth={1} />
+            </Group>
+          );
+        })
+      )}
+      {area > 0 && (
+        <Rect
+          x={(width - area) / 2}
+          y={(height - area) / 2}
+          width={area}
+          height={area}
+          color={Colors.textMuted}
+          style="stroke"
+          strokeWidth={1}>
+          <DashPathEffect intervals={[6, 6]} />
+        </Rect>
+      )}
+      <Group transform={routeTransform}>
+        <Path
+          path={path}
+          color={strokeColor}
+          style="stroke"
+          strokeWidth={strokeWidth}
+          strokeJoin="round"
+          strokeCap="round"
+        />
+      </Group>
+    </Canvas>
+  );
+
   return (
     <View onLayout={onLayout} style={styles.wrapper}>
-      {width > 0 && (
-        <GestureDetector gesture={gesture}>
-          <Canvas style={{ width, height }}>
-            <Rect x={0} y={0} width={width} height={height} color="#2A2A2D" />
-            {image ? (
-              <Group>
-                <Image image={image} x={photoX} y={photoY} width={photoW} height={photoH} fit="fill">
-                  {photo?.mono && <ColorMatrix matrix={GREYSCALE} />}
-                </Image>
-                {!!photo?.scrim && (
-                  <Rect x={0} y={0} width={width} height={height} color={`rgba(0,0,0,${photo.scrim})`} />
-                )}
-              </Group>
-            ) : (
-              // Placeholder grid until a photo is chosen.
-              Array.from({ length: GRID_LINES }, (_, i) => {
-                const gx = ((i + 1) / (GRID_LINES + 1)) * width;
-                const gy = ((i + 1) / (GRID_LINES + 1)) * height;
-                return (
-                  <Group key={i}>
-                    <Line p1={vec(gx, 0)} p2={vec(gx, height)} color="#38383C" strokeWidth={1} />
-                    <Line p1={vec(0, gy)} p2={vec(width, gy)} color="#38383C" strokeWidth={1} />
-                  </Group>
-                );
-              })
-            )}
-            {area > 0 && (
-              <Rect
-                x={(width - area) / 2}
-                y={(height - area) / 2}
-                width={area}
-                height={area}
-                color={Colors.textMuted}
-                style="stroke"
-                strokeWidth={1}>
-                <DashPathEffect intervals={[6, 6]} />
-              </Rect>
-            )}
-            <Group transform={routeTransform}>
-              <Path
-                path={path}
-                color={strokeColor}
-                style="stroke"
-                strokeWidth={strokeWidth}
-                strokeJoin="round"
-                strokeCap="round"
-              />
-            </Group>
-          </Canvas>
-        </GestureDetector>
-      )}
+      {width > 0 && (interactive ? <GestureDetector gesture={gesture}>{canvas}</GestureDetector> : canvas)}
     </View>
   );
 }
