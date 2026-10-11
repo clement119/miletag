@@ -120,7 +120,8 @@ export function InlineFields({
       {parts.map((part, i) =>
         typeof part === 'string' ? (
           // Non-breaking spaces: a plain space at the end of a piece would be dropped.
-          <Text key={i} numberOfLines={1} style={style}>
+          // Fixed words never squeeze; a long field shrinks instead.
+          <Text key={i} numberOfLines={1} style={[style, styles.fixed]}>
             {part.replace(/ /g, '\u00A0')}
           </Text>
         ) : (
@@ -148,6 +149,7 @@ function Caret({ align }: { align: FlexAlignType }) {
 
 const styles = StyleSheet.create({
   wrap: { maxWidth: '100%' },
+  fixed: { flexShrink: 0 },
   inline: { flexDirection: 'row', alignItems: 'center', maxWidth: '100%', pointerEvents: 'box-none' },
   hidden: { opacity: 0 },
   caret: { position: 'absolute', top: '12%', bottom: '12%', width: 2, borderRadius: 1, backgroundColor: '#F5A623' },

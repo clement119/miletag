@@ -38,13 +38,12 @@ import { TimeScrubber } from '@/components/bencho/time-scrubber';
 import { Clear, Glass, GlassButton, GlassRow, GlassSwatch, GlassSwatchRow } from '@/components/editor/glass';
 import { ToolRail, type ToolItem } from '@/components/editor/tool-bar';
 import { MapCanvas } from '@/components/map-canvas';
-import { GRADE_COLOUR, getPhotoQuality, PhotoQualityNotice } from '@/components/photo-quality';
 import { canvasAspect, Poster } from '@/components/posters';
 import { EditableContext, isDialField, type TextField } from '@/components/posters/editable';
 import { RouteCanvas } from '@/components/route-canvas';
 import { AppText } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { getDesign, PAPER_MM } from '@/domain/catalog';
+import { editorAspect, getDesign } from '@/domain/catalog';
 import { switchBackground, type Background } from '@/domain/design-document';
 import { getLook, hasLayout } from '@/domain/design-looks';
 import { DEMO_PHOTO, withSamples } from '@/domain/demo';
@@ -61,11 +60,14 @@ import { useDesign } from '@/state/design-store';
  * 'text' is a mode (pencils on the poster, colours along the bottom); 'wand' is a
  * switch (with a one-off intro). The rest show floating glass controls.
  */
-type ToolId = 'background' | 'adjust' | 'layers' | 'route' | 'text' | 'runner' | 'wand' | 'quality';
+type ToolId = 'background' | 'adjust' | 'layers' | 'route' | 'text' | 'runner' | 'wand';
 
 /** Pace seconds per km as "5:02". */
 const formatPaceValue = (v: number) =>
   `${Math.floor(Math.round(v) / 60)}:${String(Math.round(v) % 60).padStart(2, '0')}`;
+
+/** The magic wand (lift the subject in front of the route) is switched off for now (owner). */
+const MAGIC_WAND = false;
 
 const ROUTE_COLOURS = ['#F5A623', '#E4572E', '#E4FF1A', '#FFFFFF', '#111111', '#2F80ED'];
 /** Darken scale, in % of black over the photo. */
@@ -147,11 +149,10 @@ export default function Editor() {
 
   if (!doc) return <Redirect href="/create/runners" />;
   const design = getDesign(doc.designId);
-  const paper = PAPER_MM[doc.order.size];
-  const aspect = design?.orientation === 'landscape' ? paper.h / paper.w : paper.w / paper.h;
+  // Social-media crop (Instagram post, 4:5) for now; see SOCIAL_ASPECT.
+  const aspect = editorAspect(design);
   const slotAspect = canvasAspect(doc.designId, aspect);
   const bg = doc.background;
-  const quality = getPhotoQuality(doc);
 
   const look = getLook(doc.designId);
   // Full-bleed designs draw the photo/map across the whole screen; paper designs
@@ -170,8 +171,8 @@ export default function Editor() {
     { id: 'text', label: 'Edit text', icon: 'text-outline' },
     // Layouts edit names and times on the poster; designs without a layout yet still need a form.
     ...(hasLayout(doc.designId) ? [] : [{ id: 'runner' as const, label: 'Runners', icon: 'person-outline' as const }]),
-    // Magic wand: only where text sits over the photo.
-    ...(fullBleed && bg.type === 'photo'
+    // Magic wand: only where text sits over the photo. Switched off for now (MAGIC_WAND).
+    ...(MAGIC_WAND && fullBleed && bg.type === 'photo'
       ? [
           {
             id: 'wand' as const,
@@ -181,18 +182,8 @@ export default function Editor() {
           },
         ]
       : []),
-    ...(quality
-      ? [
-          {
-            id: 'quality' as const,
-            label: 'Quality',
-            icon: 'aperture-outline' as const,
-            dot: GRADE_COLOUR[quality.grade],
-          },
-        ]
-      : []),
   ];
-  // The Adjust/Layers/Quality tools come and go with the background.
+  // The Adjust/Layers tools come and go with the background.
   const activeTool = tools.some((t) => t.id === tool) ? tool : null;
   const textMode = activeTool === 'text';
 
@@ -485,10 +476,8 @@ export default function Editor() {
     } else if (bg.type === 'photo' && !bg.photo) {
       setTool('background');
       setNotice('Upload your photo, or switch to Map.');
-    } else if (quality?.blocked) {
-      setTool('quality');
-      setNotice('This photo is low resolution for the size. Confirm below or adjust it.');
     } else {
+      // Print quality is checked on "Get it made", per size.
       router.push('/create/format');
     }
   };
@@ -696,11 +685,6 @@ export default function Editor() {
           ))}
         </GlassSwatchRow>
       </>
-    ),
-    quality: () => (
-      <Clear style={styles.card}>
-        <PhotoQualityNotice doc={doc} onAcknowledge={(lowResAckDpi) => setPhotoOptions({ lowResAckDpi })} />
-      </Clear>
     ),
     runner: () => {
       const i = Math.min(runnerIndex, doc.runners.length - 1);

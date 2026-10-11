@@ -8,7 +8,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { getLook } from '@/domain/design-looks';
 
 import { PosterFonts, type PosterProps } from './common';
-import { BigTime, Duo, Editorial, MonoTech } from './photo-layouts';
+import { Headline, RaceBib, Swiss } from './paper-layouts';
+import { BigTime, Duo, Editorial, MonoTech, Stack } from './photo-layouts';
 import { PosterClassic } from './poster-classic';
 
 export type { PosterProps } from './common';
@@ -19,6 +20,10 @@ const LAYOUTS: Record<string, (props: PosterProps) => React.ReactNode> = {
   editorial: Editorial,
   'mono-tech': MonoTech,
   duo: Duo,
+  'race-bib': RaceBib,
+  swiss: Swiss,
+  headline: Headline,
+  stack: Stack,
 };
 
 export function Poster(props: PosterProps) {
@@ -28,7 +33,8 @@ export function Poster(props: PosterProps) {
 
 /** Width / height of the map or photo canvas inside the sheet. */
 export function canvasAspect(designId: string, sheetAspect: number): number {
-  return getLook(designId).slot === 'square' ? 1 : sheetAspect;
+  const slot = getLook(designId).slot;
+  return slot === 'square' ? 1 : slot === 'sheet' ? sheetAspect : slot.aspect;
 }
 
 function GenericPoster({ doc, children }: PosterProps) {

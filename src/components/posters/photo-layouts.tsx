@@ -395,6 +395,102 @@ export function Duo({ doc, aspectRatio, children, footnote }: PosterProps) {
   );
 }
 
+/**
+ * Stack (ours): distance, time and pace stacked huge in condensed type down the left
+ * of your photo, race and date on top, name and bib at the foot.
+ */
+export function Stack({ doc, aspectRatio, children, footnote }: PosterProps) {
+  const p = posterData(doc);
+  const c = paletteFor(doc.ink);
+  const r = p.runners[0];
+  const rows = [
+    { value: km(p.distanceKm).replace('km', ''), unit: 'KM', field: 'distance' as const },
+    { value: r.time, unit: 'TIME', field: 'time:0' as const },
+    { value: r.pace, unit: '/KM', field: 'pace:0' as const },
+  ];
+  return (
+    <Sheet aspectRatio={aspectRatio} style={children ? styles.dark : undefined} footnote={footnote}>
+      {(w) => {
+        // One size for all three rows; the longest value sets it.
+        const big = Math.min(...rows.map((x) => fitFont(x.value, 0.17, 0.7, 0.46))) * w;
+        return (
+          <>
+            {children}
+            <Overlay style={{ padding: w * 0.07 }}>
+              <Editable field="title">
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    fontFamily: PosterFonts.condensedBold,
+                    color: c.ink,
+                    fontSize: fitFont(p.title, 0.07, 0.55, 0.48) * w,
+                    letterSpacing: w * 0.003,
+                  }}>
+                  {p.title.toUpperCase()}
+                </Text>
+              </Editable>
+              <Editable field="date">
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    fontFamily: PosterFonts.condensed,
+                    color: c.soft,
+                    fontSize: w * 0.032,
+                    letterSpacing: w * 0.003,
+                  }}>
+                  {p.date.toUpperCase()}
+                </Text>
+              </Editable>
+              <View style={[styles.flex, { justifyContent: 'flex-end' }]}>
+                {rows.map((x) => (
+                  <View key={x.unit} style={[styles.statRow, { alignItems: 'flex-end' }]}>
+                    <Editable field={x.field}>
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          fontFamily: PosterFonts.condensedBold,
+                          color: c.ink,
+                          fontSize: big,
+                          lineHeight: big * 0.98,
+                        }}>
+                        {x.value}
+                      </Text>
+                    </Editable>
+                    <Text
+                      style={{
+                        fontFamily: PosterFonts.condensed,
+                        color: c.soft,
+                        fontSize: w * 0.035,
+                        letterSpacing: w * 0.003,
+                        marginLeft: w * 0.02,
+                        marginBottom: big * 0.12,
+                      }}>
+                      {x.unit}
+                    </Text>
+                  </View>
+                ))}
+                <View style={{ backgroundColor: c.rule, height: Math.max(1, w * 0.002), marginVertical: w * 0.025 }} />
+                <InlineFields
+                  style={{
+                    fontFamily: PosterFonts.condensedBold,
+                    color: c.ink,
+                    fontSize: w * 0.04,
+                    letterSpacing: w * 0.004,
+                  }}
+                  parts={[
+                    { text: r.name.toUpperCase(), field: 'name:0' },
+                    ...(r.bib ? ['   #', { text: r.bib, field: 'bib:0' as const }] : []),
+                  ]}
+                />
+              </View>
+            </Overlay>
+          </>
+        );
+      }}
+    </Sheet>
+  );
+}
+
 // Layout containers never take a touch (box-none): in edit mode only the text does, and a
 // tap on empty space reaches the editor's tap-outside layer.
 const styles = StyleSheet.create({

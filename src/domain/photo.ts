@@ -40,10 +40,12 @@ export const POSTER_CLASSIC_SQUARE = 0.8;
 /** Printed size of the photo slot, in mm. */
 export function photoSlotMm(designId: string, size: PaperSize): { w: number; h: number } {
   const paper = PAPER_MM[size];
-  if (getLook(designId).slot === 'square') {
+  const slot = getLook(designId).slot;
+  if (slot === 'square') {
     const side = paper.w * POSTER_CLASSIC_SQUARE;
     return { w: side, h: side };
   }
+  if (slot !== 'sheet') return { w: paper.w * slot.width, h: (paper.w * slot.width) / slot.aspect };
   // Other designs are full-bleed until their own layouts land.
   return getDesign(designId)?.orientation === 'landscape' ? { w: paper.h, h: paper.w } : paper;
 }

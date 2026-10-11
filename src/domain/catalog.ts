@@ -163,6 +163,42 @@ export const DESIGNS: readonly Design[] = [
     orientation: 'portrait',
   },
   {
+    id: 'race-bib',
+    name: 'Race Bib',
+    description: 'Your bib number, huge, with the route along the bottom.',
+    supportsRunners: [1],
+    supportsMedal: false,
+    supports3D: true,
+    orientation: 'portrait',
+  },
+  {
+    id: 'swiss',
+    name: 'Swiss',
+    description: 'A giant distance, a map and a clean three-column grid.',
+    supportsRunners: [1],
+    supportsMedal: false,
+    supports3D: true,
+    orientation: 'portrait',
+  },
+  {
+    id: 'headline',
+    name: 'Headline',
+    description: 'Front-page news: your name in the headline over a black-and-white photo.',
+    supportsRunners: [1],
+    supportsMedal: false,
+    supports3D: true,
+    orientation: 'portrait',
+  },
+  {
+    id: 'stack',
+    name: 'Stack',
+    description: 'Distance, time and pace stacked big over your photo.',
+    supportsRunners: [1],
+    supportsMedal: false,
+    supports3D: true,
+    orientation: 'portrait',
+  },
+  {
     id: 'crew-grid',
     name: 'Crew Grid',
     description: 'Shared route on top, a stat grid for the whole crew below.',
@@ -202,6 +238,17 @@ export const DESIGNS: readonly Design[] = [
 
 export function designsFor(runnerCount: RunnerCount): Design[] {
   return DESIGNS.filter((d) => d.supportsRunners.includes(runnerCount));
+}
+
+/**
+ * The editor and gallery show designs at the social-media crop for now (owner's call):
+ * Instagram post, 1080 × 1350 (4:5), or 5:4 for landscape designs. Print sizes are
+ * still the A-series; their own layout pass comes with the print render.
+ */
+export const SOCIAL_ASPECT = 4 / 5;
+
+export function editorAspect(design: Design | undefined): number {
+  return design?.orientation === 'landscape' ? 1 / SOCIAL_ASPECT : SOCIAL_ASPECT;
 }
 
 export function getDesign(id: string): Design | undefined {

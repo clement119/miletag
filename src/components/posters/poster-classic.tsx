@@ -30,6 +30,8 @@ export function PosterClassic({ doc, aspectRatio, children, footnote }: PosterPr
         const inner = POSTER_CLASSIC_SQUARE;
         const nameLine = `${runner.name}${runner.bib ? `#${runner.bib}` : ''}`;
         const nameSize = fitFont(nameLine, 0.05, inner * 0.75, 0.5) * w;
+        // The square shrinks on shorter sheets (the 4:5 social crop) so the text below fits.
+        const side = Math.min(inner * w, w / aspectRatio - w * 0.53);
         return (
           <View style={[styles.fill, styles.boxNone, { paddingHorizontal: margin, paddingTop: margin * 0.85 }]}>
             <Editable field="title">
@@ -49,7 +51,7 @@ export function PosterClassic({ doc, aspectRatio, children, footnote }: PosterPr
               </Text>
             </Editable>
 
-            <View style={[styles.square, { marginTop: w * 0.025 }]}>
+            <View style={[styles.square, { width: side, marginTop: w * 0.025 }]}>
               {children}
               {/* In the corner of the image, like map apps: takes no layout space. */}
               {footnote ? (
@@ -113,7 +115,7 @@ const styles = StyleSheet.create({
   boxNone: { pointerEvents: 'box-none' },
   title: { fontFamily: PosterFonts.condensedBold },
   date: { fontFamily: PosterFonts.condensed },
-  square: { width: '100%', aspectRatio: 1, overflow: 'hidden' },
+  square: { alignSelf: 'center', aspectRatio: 1, overflow: 'hidden' },
   footnote: { position: 'absolute', right: 0, bottom: 0, color: '#333', backgroundColor: 'rgba(255,255,255,0.7)' },
   bottom: { flex: 1, justifyContent: 'flex-end', alignItems: 'flex-end' },
   name: { fontFamily: PosterFonts.condensedBold },

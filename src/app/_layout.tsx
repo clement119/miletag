@@ -4,6 +4,8 @@ import { Inter_300Light } from '@expo-google-fonts/inter/300Light';
 import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
 import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
+import { PlayfairDisplay_400Regular_Italic } from '@expo-google-fonts/playfair-display/400Regular_Italic';
+import { PlayfairDisplay_900Black } from '@expo-google-fonts/playfair-display/900Black';
 import { SpaceMono_400Regular } from '@expo-google-fonts/space-mono/400Regular';
 import { SpaceMono_700Bold } from '@expo-google-fonts/space-mono/700Bold';
 import { useFonts } from 'expo-font';
@@ -37,6 +39,8 @@ export default function RootLayout() {
     Inter_600SemiBold,
     SpaceMono_400Regular,
     SpaceMono_700Bold,
+    PlayfairDisplay_900Black,
+    PlayfairDisplay_400Regular_Italic,
   });
   // A font failure shouldn't block the app; posters fall back to system fonts.
   if (!fontsLoaded && !fontError) return null;

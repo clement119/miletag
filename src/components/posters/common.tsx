@@ -22,6 +22,8 @@ export const PosterFonts = {
   semibold: 'Inter_600SemiBold',
   mono: 'SpaceMono_400Regular',
   monoBold: 'SpaceMono_700Bold',
+  serifBlack: 'PlayfairDisplay_900Black',
+  serifItalic: 'PlayfairDisplay_400Regular_Italic',
 } as const;
 
 export type PosterProps = {
