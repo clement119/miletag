@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo/ui": "~57.0.22",
+    "@maplibre/maplibre-gl-style-spec": "^26.4.4",
+    "@maplibre/maplibre-react-native": "^11.5.0",
     "@shopify/react-native-skia": "2.6.2",
     "expo": "~57.0.27",
     "expo-constants": "~57.0.21",
@@ -23,6 +25,7 @@
     "expo-symbols": "~57.0.3",
     "expo-system-ui": "~57.0.4",
     "expo-web-browser": "~57.0.3",
+    "maplibre-gl": "^6.13.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
@@ -45,7 +48,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "postinstall": "node scripts/copy-canvaskit.js",
+    "postinstall": "node scripts/copy-web-assets.js",
     "typecheck": "tsc --noEmit"
   },
   "private": true

@@ -69,9 +69,13 @@ function perpendicularDistance(p: XY, a: XY, b: XY): number {
   return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
 }
 
-/** Ramer–Douglas–Peucker, iterative to avoid deep recursion on long tracks. */
-export function simplify(points: readonly XY[], tolerance: number): XY[] {
-  if (points.length <= 2) return [...points];
+/**
+ * Ramer–Douglas–Peucker, iterative to avoid deep recursion on long tracks.
+ * Returns the indices of the points to keep, so callers can apply the same
+ * selection to the geographic coordinates.
+ */
+export function simplifyIndices(points: readonly XY[], tolerance: number): number[] {
+  if (points.length <= 2) return points.map((_, i) => i);
   const keep = new Uint8Array(points.length);
   keep[0] = keep[points.length - 1] = 1;
   const stack: [number, number][] = [[0, points.length - 1]];
@@ -91,7 +95,13 @@ export function simplify(points: readonly XY[], tolerance: number): XY[] {
       stack.push([first, index], [index, last]);
     }
   }
-  return points.filter((_, i) => keep[i]);
+  const out: number[] = [];
+  keep.forEach((k, i) => k && out.push(i));
+  return out;
+}
+
+export function simplify(points: readonly XY[], tolerance: number): XY[] {
+  return simplifyIndices(points, tolerance).map((i) => points[i]);
 }
 
 /**
@@ -117,8 +127,11 @@ export function normalise(points: readonly XY[]): { points: XY[]; aspect: number
   };
 }
 
+export type LngLat = [longitude: number, latitude: number];
+
 export type ProcessedRoute = {
   points: XY[]; // normalised 0..1
+  geo: LngLat[]; // same points, geographic, for map backgrounds
   distanceKm: number;
   elapsedSeconds?: number;
 };
@@ -131,15 +144,32 @@ export function processTrack(
   const projected = normalise(project(trimmed)).points;
   // Tighten tolerance until we're under the point budget.
   let tolerance = 0.0005;
-  let simplified = simplify(projected, tolerance);
-  while (simplified.length > maxPoints) {
+  let kept = simplifyIndices(projected, tolerance);
+  while (kept.length > maxPoints) {
     tolerance *= 2;
-    simplified = simplify(projected, tolerance);
+    kept = simplifyIndices(projected, tolerance);
   }
   return {
-    points: simplified,
+    points: kept.map((i) => projected[i]),
+    geo: kept.map((i) => [trimmed[i].lon, trimmed[i].lat] as LngLat),
     // Stats use the untrimmed track: the trim is a display privacy measure.
     distanceKm: totalDistanceMeters(raw) / 1000,
     elapsedSeconds: elapsedSeconds(raw),
   };
+}
+
+export type GeoBounds = [southWest: LngLat, northEast: LngLat];
+
+export function geoBounds(geo: readonly LngLat[]): GeoBounds {
+  let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
+  for (const [lon, lat] of geo) {
+    minLon = Math.min(minLon, lon);
+    minLat = Math.min(minLat, lat);
+    maxLon = Math.max(maxLon, lon);
+    maxLat = Math.max(maxLat, lat);
+  }
+  return [
+    [minLon, minLat],
+    [maxLon, maxLat],
+  ];
 }

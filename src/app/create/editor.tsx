@@ -2,10 +2,22 @@ import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
+import { AnimatedTabs } from '@/components/animated-tabs';
+import { AnimatedToggle } from '@/components/animated-toggle';
+import { MapCanvas } from '@/components/map-canvas';
+import { MapStyleCarousel } from '@/components/map-style-carousel';
 import { RouteCanvas } from '@/components/route-canvas';
 import { AppText, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { getDesign, PAPER_MM } from '@/domain/catalog';
+import type { Background } from '@/domain/design-document';
+import {
+  DEFAULT_LAYER_TOGGLES,
+  getMapStyle,
+  MAP_ATTRIBUTION,
+  type MapLayerToggles,
+  type MapStyleId,
+} from '@/domain/map-styles';
 import { formatDuration, formatPace, parseDuration } from '@/domain/race';
 import { GpxParseError } from '@/domain/route/gpx';
 import { pickGpxRoute } from '@/domain/route/import-gpx';
@@ -28,7 +40,9 @@ export default function Editor() {
       if (!route) return;
       update((d) => ({
         ...d,
-        route: { ...d.route, points: route.points },
+        route: { ...d.route, points: route.points, geo: route.geo },
+        // A new route re-frames the map.
+        background: d.background.type === 'map' ? { ...d.background, camera: null } : d.background,
         runners: d.runners.map((r, i) =>
           i === 0
             ? {
@@ -44,6 +58,38 @@ export default function Editor() {
     }
   };
 
+  const bg = doc.background;
+  const mapStyle = bg.type === 'map' ? getMapStyle(bg.styleId) : null;
+
+  const setBackgroundType = (type: Background['type']) =>
+    update((d) => {
+      if (d.background.type === type) return d;
+      const background: Background =
+        type === 'map'
+          ? { type: 'map', styleId: 'graphite', camera: null, layers: { ...DEFAULT_LAYER_TOGGLES } }
+          : { type: 'photo' };
+      return { ...d, background };
+    });
+
+  const setMapStyle = (styleId: MapStyleId) =>
+    update((d) =>
+      d.background.type === 'map'
+        ? {
+            ...d,
+            background: { ...d.background, styleId },
+            // Each style ships with a route colour that reads on it.
+            route: { ...d.route, stroke: { ...d.route.stroke, color: getMapStyle(styleId).routeColor } },
+          }
+        : d,
+    );
+
+  const setLayer = (key: keyof MapLayerToggles, on: boolean) =>
+    update((d) =>
+      d.background.type === 'map'
+        ? { ...d, background: { ...d.background, layers: { ...d.background.layers, [key]: on } } }
+        : d,
+    );
+
   const setRunner = (index: number, patch: Partial<(typeof doc.runners)[number]>) =>
     update((d) => ({ ...d, runners: d.runners.map((r, i) => (i === index ? { ...r, ...patch } : r)) }));
 
@@ -51,21 +97,62 @@ export default function Editor() {
     <Screen>
       <AppText variant="caption">{design?.name}</AppText>
 
+      <AnimatedTabs
+        accessibilityLabel="Background"
+        items={[
+          { value: 'map', label: 'Map' },
+          { value: 'photo', label: 'Photo' },
+        ]}
+        value={bg.type}
+        onChange={setBackgroundType}
+      />
+
       <View style={styles.poster}>
-        <RouteCanvas
-          points={doc.route.points}
-          transform={doc.route.transform}
-          strokeColor={doc.route.stroke.color}
-          aspectRatio={aspect}
-          onTransformEnd={(transform) => update((d) => ({ ...d, route: { ...d.route, transform } }))}
-        />
+        {bg.type === 'map' ? (
+          <MapCanvas
+            styleId={bg.styleId}
+            layers={bg.layers}
+            geo={doc.route.geo}
+            routeColor={doc.route.stroke.color}
+            camera={bg.camera}
+            aspectRatio={aspect}
+            onCameraChange={(camera) =>
+              update((d) => (d.background.type === 'map' ? { ...d, background: { ...d.background, camera } } : d))
+            }
+          />
+        ) : (
+          <RouteCanvas
+            points={doc.route.points}
+            transform={doc.route.transform}
+            strokeColor={doc.route.stroke.color}
+            aspectRatio={aspect}
+            onTransformEnd={(transform) => update((d) => ({ ...d, route: { ...d.route, transform } }))}
+          />
+        )}
         {doc.text.title !== '' && (
-          <AppText style={styles.posterTitle} numberOfLines={1}>
+          <AppText style={[styles.posterTitle, mapStyle && { color: mapStyle.inkColor }]} numberOfLines={1}>
             {doc.text.title.toUpperCase()}
           </AppText>
         )}
+        {bg.type === 'map' && <AppText style={styles.attribution}>{MAP_ATTRIBUTION}</AppText>}
       </View>
-      <AppText variant="caption">Drag to move · pinch to resize · twist to rotate · double-tap to reset</AppText>
+      <AppText variant="caption">
+        {bg.type === 'map'
+          ? 'Drag to move the map · pinch to zoom · twist to rotate. The route stays on the streets.'
+          : 'Drag to move · pinch to resize · twist to rotate · double-tap to reset'}
+      </AppText>
+
+      {bg.type === 'map' && (
+        <Card>
+          <MapStyleCarousel value={bg.styleId} onChange={setMapStyle} />
+          <AnimatedToggle label="Water" value={bg.layers.water} onChange={(on) => setLayer('water', on)} />
+          <AnimatedToggle label="Parks" value={bg.layers.parks} onChange={(on) => setLayer('parks', on)} />
+          <AnimatedToggle label="Roads" value={bg.layers.roads} onChange={(on) => setLayer('roads', on)} />
+        </Card>
+      )}
+      {bg.type === 'photo' && (
+        <AppText variant="caption">Photo upload is coming next. For now the route sits on a placeholder.</AppText>
+      )}
 
       {error && <AppText style={{ color: Colors.danger }}>{error}</AppText>}
       <Button
@@ -133,7 +220,7 @@ export default function Editor() {
 
       <Button
         label="Get it made"
-        disabled={!doc.route.points}
+        disabled={!doc.route.geo}
         onPress={() => router.push('/create/format')}
       />
     </Screen>
@@ -148,6 +235,7 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   posterTitle: { color: '#111', fontWeight: '800', fontSize: 18, letterSpacing: 1 },
+  attribution: { color: '#8A8780', fontSize: 9 },
   input: {
     backgroundColor: Colors.surfaceRaised,
     borderRadius: Radius.md,

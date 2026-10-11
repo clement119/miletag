@@ -4,16 +4,16 @@
  */
 
 import type {
-  BackgroundKind,
   FilamentColour,
   Format,
   FrameColour,
   PaperSize,
   RunnerCount,
 } from './catalog';
-import type { XY } from './route/geometry';
+import { DEFAULT_LAYER_TOGGLES, type MapLayerToggles, type MapStyleId } from './map-styles';
+import type { LngLat, XY } from './route/geometry';
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export type Runner = {
   name: string;
@@ -31,6 +31,17 @@ export type RouteTransform = {
   rotation: number; // radians
 };
 
+/** Saved map view. Null until the user has framed the map (we auto-fit to the route). */
+export type MapCamera = {
+  center: LngLat;
+  zoom: number;
+  bearing: number;
+};
+
+export type Background =
+  | { type: 'map'; styleId: MapStyleId; camera: MapCamera | null; layers: MapLayerToggles }
+  | { type: 'photo'; photoUri?: string };
+
 export type DesignDocument = {
   schemaVersion: typeof SCHEMA_VERSION;
   designId: string;
@@ -43,10 +54,11 @@ export type DesignDocument = {
     route3d: { enabled: boolean; color: FilamentColour; printedLineBelow: boolean };
     medal: { enabled: boolean; diameterMm?: number; ribbon: 'visible' | 'folded' | 'removed' };
   };
-  background: { type: BackgroundKind; styleId?: string; photoUri?: string };
+  background: Background;
   runners: Runner[];
   route: {
-    points: XY[] | null; // normalised 0..1
+    points: XY[] | null; // normalised 0..1, used in photo mode
+    geo: LngLat[] | null; // geographic, used in map mode (route is locked to the map)
     transform: RouteTransform;
     stroke: { width: number; color: string };
     markers: boolean;
@@ -70,10 +82,11 @@ export function createDesignDocument(designId: string, runnerCount: RunnerCount)
       route3d: { enabled: false, color: 'orange', printedLineBelow: true },
       medal: { enabled: false, ribbon: 'visible' },
     },
-    background: { type: 'map', styleId: 'graphite' },
+    background: { type: 'map', styleId: 'graphite', camera: null, layers: { ...DEFAULT_LAYER_TOGGLES } },
     runners: Array.from({ length: runnerCount }, () => ({ name: '' })),
     route: {
       points: null,
+      geo: null,
       transform: { ...DEFAULT_ROUTE_TRANSFORM },
       stroke: { width: 2.5, color: '#F5A623' },
       markers: true,

@@ -1,6 +1,6 @@
 /**
  * Web needs CanvasKit (Skia's WASM build) loaded before any Skia component renders.
- * The wasm file is copied to /public by `npm run postinstall`.
+ * The wasm file is copied to /public by scripts/copy-web-assets.js (postinstall).
  */
 
 import { WithSkiaWeb } from '@shopify/react-native-skia/lib/module/web';
