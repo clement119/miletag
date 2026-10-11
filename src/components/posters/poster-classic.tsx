@@ -23,7 +23,7 @@ type Props = {
   aspectRatio: number;
   /** The square map or photo. */
   children: ReactNode;
-  /** Small print under the square, e.g. map attribution. */
+  /** Small print in the image corner, e.g. map attribution. */
   footnote?: string;
 };
 
@@ -60,8 +60,18 @@ export function PosterClassic({ doc, aspectRatio, children, footnote }: Props) {
             style={{ fontSize: w * 0.03, letterSpacing: w * 0.004, marginTop: w * 0.012, color: INK_MUTED }}
           />
 
-          <View style={[styles.square, { marginTop: w * 0.035 }]}>{children}</View>
-          {footnote ? <Text style={[styles.footnote, { fontSize: Math.max(7, w * 0.016) }]}>{footnote}</Text> : null}
+          <View style={[styles.square, { marginTop: w * 0.035 }]}>
+            {children}
+            {/* In the corner of the image, like map apps: takes no layout space. */}
+            {footnote ? (
+              <Text
+                pointerEvents="none"
+                numberOfLines={1}
+                style={[styles.footnote, { fontSize: w * 0.013, paddingHorizontal: w * 0.006 }]}>
+                {footnote}
+              </Text>
+            ) : null}
+          </View>
 
           <View style={[styles.bottom, { paddingBottom: margin * 0.7 }]}>
             <Field
@@ -136,7 +146,7 @@ function Field({
 const styles = StyleSheet.create({
   sheet: { width: '100%', backgroundColor: PAPER, borderRadius: 4, overflow: 'hidden' },
   square: { width: '100%', aspectRatio: 1, overflow: 'hidden' },
-  footnote: { color: INK_MUTED, marginTop: 4, textAlign: 'right' },
+  footnote: { position: 'absolute', right: 0, bottom: 0, color: '#333', backgroundColor: 'rgba(255,255,255,0.7)' },
   bottom: { flex: 1, justifyContent: 'flex-end' },
   text: { color: INK, fontFamily: Fonts?.sans },
   stats: { flexDirection: 'row', borderTopColor: INK },

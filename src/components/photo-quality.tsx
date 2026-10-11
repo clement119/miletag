@@ -6,7 +6,7 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 import type { DesignDocument } from '@/domain/design-document';
 import { gradeDpi, photoDpi, photoSlotMm, type DpiGrade } from '@/domain/photo';
 
-const GRADE_COLOUR: Record<DpiGrade, string> = { good: '#34C77B', fair: '#F5A623', low: Colors.danger };
+export const GRADE_COLOUR: Record<DpiGrade, string> = { good: '#34C77B', fair: '#F5A623', low: Colors.danger };
 
 export type PhotoQuality = { dpi: number; grade: DpiGrade; blocked: boolean };
 

@@ -37,6 +37,7 @@ Miletag turns a race into wall art. Free: live editor and preview, drag the GPX 
 - Map backgrounds: `src/domain/map-styles.ts` (Graphite, Paper, Blueprint, Noir, Terrain w/ hillshade; water/parks/roads toggles). `src/components/map-canvas/` uses `@maplibre/maplibre-react-native` v11 on native and `maplibre-gl` v6 on web; route is a map line layer (geo-locked), camera saved on user gestures.
 - Ported SmoothUI components: `animated-tabs.tsx` (segment), `animated-toggle.tsx`, `map-style-carousel.tsx` (coverflow).
 - **Photo backgrounds (built):** `src/domain/import-photo.ts` (expo-image-picker, full-quality original + ≤2048 px preview via expo-image-manipulator), `src/domain/photo.ts` (crop model, `clampCrop`, `photoDpi`, `gradeDpi`, `photoSlotMm`). The Skia `route-canvas` draws the photo (cover-fit, drag/pinch crop, B&W, scrim) with a "Move photo / Move route" switch. `components/photo-quality.tsx` = DPI traffic light (PRD §7.2) on the editor and the size picker; red needs "Print it anyway" (`lowResAckDpi`, covers that DPI or better) or checkout is blocked. Schema v5.
+- **Editor UI (built, Instagram style):** `src/app/create/editor.tsx` is one non-scrolling screen (header hidden in `_layout`): top bar with Next, poster fitted to the stage, fixed-height tool panel, icon `ToolBar` (`components/editor/tool-bar.tsx`, Ionicons from `@expo/vector-icons`). Tools: Background, Adjust (photo) / Layers (map), Route, Race, Runner, Quality (photo only, traffic-light dot). Next is never greyed out; it opens the tool that fixes what's missing.
 - **Poster Classic layout (built):** `components/posters/poster-classic.tsx`. Sizes are fractions of sheet width; square = `POSTER_CLASSIC_SQUARE` (0.8 of paper width, shared with the DPI math). Title and name are one line and shrink to fit (no reflow). Other designs still use the generic full-bleed preview.
 - Web needs `public/canvaskit.wasm` and `public/maplibre/maplibre-gl-worker.mjs`, copied by `scripts/copy-web-assets.js` on `npm install` (gitignored).
 - Verified: typecheck, lint, expo-doctor 21/21, iOS + Android JS bundles compile, web flow tested in headless Chromium. **Not yet run on a real device.**
@@ -55,5 +56,6 @@ Miletag turns a race into wall art. Free: live editor and preview, drag the GPX 
 
 ## Next steps
 1. Install the Android dev build on a real phone and test; iOS once Clement has an Apple Developer account.
-2. Free watermarked social export (Poster Classic first), then the other 8 design layouts.
-3. Checkout with FPX / DuitNow / e-wallets; then backend (Supabase), Crew Copy Link, server print + 3D file generation, Production Console lite.
+2. **Waiting on Clement:** the 5 design sample images (PRD "image 1–5") were shared in an earlier chat and never committed. Ask for them in `docs/samples/`; use them for the design gallery previews and for building the other layouts.
+3. Free watermarked social export (Poster Classic first), then the other 8 design layouts.
+4. Checkout with FPX / DuitNow / e-wallets; then backend (Supabase), Crew Copy Link, server print + 3D file generation, Production Console lite.

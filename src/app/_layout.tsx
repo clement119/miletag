@@ -27,7 +27,7 @@ export default function RootLayout() {
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="create/runners" options={{ title: 'Runners' }} />
             <Stack.Screen name="create/designs" options={{ title: 'Choose a design' }} />
-            <Stack.Screen name="create/editor" options={{ title: 'Editor' }} />
+            <Stack.Screen name="create/editor" options={{ headerShown: false }} />
             <Stack.Screen name="create/format" options={{ title: 'Get it made' }} />
             <Stack.Screen name="admin/index" options={{ title: 'Production Console' }} />
           </Stack>
