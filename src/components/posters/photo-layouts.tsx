@@ -152,7 +152,7 @@ export function BigTime({ doc, aspectRatio, children, footnote }: PosterProps) {
               c={c}
               stats={[
                 { label: 'Distance', value: km(p.distanceKm), field: 'distance' },
-                { label: 'Pace', value: `${r.pace}/km` },
+                { label: 'Pace', value: `${r.pace}/km`, field: 'pace:0' },
               ]}
             />
           </Overlay>
@@ -236,7 +236,7 @@ export function Editorial({ doc, aspectRatio, children, footnote }: PosterProps)
               c={c}
               stats={[
                 { label: 'Distance', value: km(p.distanceKm), field: 'distance' },
-                { label: 'Pace', value: `${r.pace}/km` },
+                { label: 'Pace', value: `${r.pace}/km`, field: 'pace:0' },
                 { label: 'Time', value: r.time, field: 'time:0' },
               ]}
             />
@@ -322,7 +322,9 @@ export function Duo({ doc, aspectRatio, children, footnote }: PosterProps) {
             {r.time}
           </Text>
         </Editable>
-        <Text style={{ fontSize: w * 0.03, fontFamily: PosterFonts.regular, color: c.soft }}>{r.pace}/km</Text>
+        <Editable field={`pace:${i}`} align={i === 1 ? 'flex-end' : 'flex-start'}>
+          <Text style={{ fontSize: w * 0.03, fontFamily: PosterFonts.regular, color: c.soft }}>{r.pace}/km</Text>
+        </Editable>
       </View>
     ) : null;
 
@@ -374,14 +376,16 @@ export function Duo({ doc, aspectRatio, children, footnote }: PosterProps) {
   );
 }
 
+// Layout containers never take a touch (box-none): in edit mode only the text does, and a
+// tap on empty space reaches the editor's tap-outside layer.
 const styles = StyleSheet.create({
   dark: { backgroundColor: '#1A1A1C' },
-  flex: { flex: 1 },
-  center: { alignItems: 'center', justifyContent: 'center' },
+  flex: { flex: 1, pointerEvents: 'box-none' },
+  center: { alignItems: 'center', justifyContent: 'center', pointerEvents: 'box-none' },
   alignEnd: { alignItems: 'flex-end' },
   alignRight: { textAlign: 'right' },
-  topRow: { flexDirection: 'row', gap: 12 },
-  statRow: { flexDirection: 'row' },
-  dateRow: { flexDirection: 'row', alignItems: 'center' },
+  topRow: { flexDirection: 'row', gap: 12, pointerEvents: 'box-none' },
+  statRow: { flexDirection: 'row', pointerEvents: 'box-none' },
+  dateRow: { flexDirection: 'row', alignItems: 'center', pointerEvents: 'box-none' },
   editorialText: { fontFamily: PosterFonts.regular },
 });

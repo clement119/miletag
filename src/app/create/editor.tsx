@@ -2,10 +2,11 @@
  * The editor, Instagram Stories style. The photo or map fills the whole screen; the
  * print area sits in the middle with the design's text laid out exactly as it
  * prints, and the bleed around it is lightly dimmed. Tool icons float over the top
- * right; tapping one shows that tool's controls as floating glass icons at the
- * bottom (never a tray) and the print area shrinks to stay in view. Until the user
- * adds their own content, the design shows sample content so it looks like its
- * gallery preview.
+ * right; tapping one shows its controls on a see-through blurred band laid OVER the
+ * bottom of the preview. The preview never shrinks or moves, nothing ever opens
+ * below it, and there are no Done buttons: tapping anywhere outside the controls
+ * closes them. Until the user adds their own content, the design shows sample
+ * content so it looks like its gallery preview.
  */
 
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -31,7 +32,7 @@ import { ToolRail, type ToolItem } from '@/components/editor/tool-bar';
 import { MapCanvas } from '@/components/map-canvas';
 import { GRADE_COLOUR, getPhotoQuality, PhotoQualityNotice } from '@/components/photo-quality';
 import { canvasAspect, Poster } from '@/components/posters';
-import { EditableContext, type TextField } from '@/components/posters/editable';
+import { EditableContext, isDialField, type TextField } from '@/components/posters/editable';
 import { RouteCanvas } from '@/components/route-canvas';
 import { AppText } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
@@ -53,6 +54,10 @@ import { useDesign } from '@/state/design-store';
  * switch (with a one-off intro). The rest show floating glass controls.
  */
 type ToolId = 'background' | 'adjust' | 'layers' | 'route' | 'text' | 'runner' | 'wand' | 'quality';
+
+/** Pace seconds per km as "5:02". */
+const formatPaceValue = (v: number) =>
+  `${Math.floor(Math.round(v) / 60)}:${String(Math.round(v) % 60).padStart(2, '0')}`;
 
 const ROUTE_COLOURS = ['#F5A623', '#E4572E', '#E4FF1A', '#FFFFFF', '#111111', '#2F80ED'];
 /** Darken scale, in % of black over the photo. */
@@ -129,31 +134,17 @@ export default function Editor() {
   const activeTool = tools.some((t) => t.id === tool) ? tool : null;
   const textMode = activeTool === 'text';
 
-  // Height of the floating controls per tool, so the print area can shrink above them.
-  const controlsHeight: Partial<Record<ToolId, number>> = {
-    background: bg.type === 'map' ? 190 : 110,
-    adjust: 290,
-    layers: 120,
-    route: 180,
-    quality: 210,
-    runner: 230,
-    // The colour dots and hint, so they never sit on the poster's own text.
-    text: 120,
-  };
-  const reserved = activeTool ? (controlsHeight[activeTool] ?? 0) : 0;
-
-  // The print area: as big as the screen allows (full width on a phone), centred.
-  // With controls showing it fits in the space above them. Sized from the window, never onLayout.
+  // The print area: as big as the screen allows (full width on a phone), centred, and
+  // it never changes size when tools open. Sized from the window, never onLayout.
   const screenW = window.width;
   const screenH = window.height;
-  const top = reserved ? insets.top + Spacing.two : 0;
-  const room = reserved ? screenH - reserved - insets.bottom - top - Spacing.two : screenH;
-  const frameW = Math.max(120, Math.min(screenW, room * aspect));
+  const frameW = Math.max(120, Math.min(screenW, screenH * aspect));
   const frameH = frameW / aspect;
-  const frame = { x: (screenW - frameW) / 2, y: top + (room - frameH) / 2, width: frameW, height: frameH };
+  const frame = { x: (screenW - frameW) / 2, y: (screenH - frameH) / 2, width: frameW, height: frameH };
+  const dialing = textMode && isDialField(editField);
   // What the poster shows: the user's content, with samples filling the gaps (but never
   // in the field being edited, which reads blank).
-  const display = withSamples(doc, textMode ? editField : null);
+  const display = withSamples(doc, textMode && !dialing ? editField : null);
 
   const openTool = (id: ToolId | null) => {
     if (id === 'wand') {
@@ -338,14 +329,79 @@ export default function Editor() {
    */
   const beginEdit = (field: TextField) => {
     setTool('text');
+    setNotice(null);
     setEditField(field);
+    // Time, pace and distance use a dial: no keyboard, and the value stays to scrub from.
+    if (isDialField(field)) {
+      inputRef.current?.blur();
+      return;
+    }
     setDraft('');
     setFieldValue(field, '');
     inputRef.current?.focus();
   };
 
-  const keyboardFor = (field: TextField | null) =>
-    field === 'distance' ? 'decimal-pad' : field?.startsWith('time') ? 'numbers-and-punctuation' : 'default';
+  /** Tapping anywhere outside the controls closes whatever is open. */
+  const closeAll = () => openTool(null);
+
+  /** The dial for time, pace or distance: Bencho's scrubber, like the darken ruler. */
+  const fieldDial = (field: TextField) => {
+    const [key, index] = field.split(':');
+    const i = Number(index) || 0;
+    // Start from what the poster shows (samples included), so the dial and poster agree.
+    const shown = display.doc.runners[i];
+    const km = display.doc.runners[0]?.distanceKm ?? 42.2;
+    const common = { tone: 'glass' as const, corner: 22, step: '1', momentum: 60 };
+    if (key === 'distance')
+      return (
+        <TimeScrubber
+          key={field}
+          {...common}
+          ariaLabel="Distance"
+          min={0}
+          max={30000}
+          pxPerUnit={2}
+          ticks={{ minor: 10, mid: 50, major: 100 }}
+          value={Math.round(km * 100)}
+          formatValue={(v) => ({ time: (v / 100).toFixed(2), mer: 'KM' })}
+          formatTick={(v) => `${v / 100}`}
+          onChange={(v) => setRunner(0, { distanceKm: v > 0 ? Math.round(v) / 100 : undefined })}
+        />
+      );
+    const seconds = shown?.timeSeconds ?? 0;
+    if (key === 'pace')
+      return (
+        <TimeScrubber
+          key={field}
+          {...common}
+          ariaLabel="Pace"
+          min={120}
+          max={1200}
+          pxPerUnit={3}
+          ticks={{ minor: 5, mid: 15, major: 60 }}
+          value={Math.round(seconds / km)}
+          formatValue={(v) => ({ time: formatPaceValue(v), mer: '/KM' })}
+          formatTick={(v) => formatPaceValue(v)}
+          // Pace isn't stored: it sets the finish time for this distance.
+          onChange={(v) => setRunner(i, { timeSeconds: Math.round(Math.round(v) * km) })}
+        />
+      );
+    return (
+      <TimeScrubber
+        key={field}
+        {...common}
+        ariaLabel="Finish time"
+        min={0}
+        max={12 * 3600}
+        pxPerUnit={1}
+        ticks={{ minor: 10, mid: 30, major: 60 }}
+        value={seconds}
+        formatValue={(v) => ({ time: formatDuration(v), mer: '' })}
+        formatTick={(v) => formatDuration(v).replace(/:00$/, '')}
+        onChange={(v) => setRunner(i, { timeSeconds: Math.round(v) || undefined })}
+      />
+    );
+  };
 
   // Next never sits greyed out: it opens whichever tool fixes what's missing.
   const next = () => {
@@ -388,8 +444,8 @@ export default function Editor() {
   function printLayer(child?: React.ReactNode) {
     return (
       <EditableContext.Provider
-        value={{ editing: textMode, active: editField, activeEmpty: draft === '', onEdit: beginEdit }}>
-        <View style={[styles.frame, { left: frame.x, top: frame.y, width: frame.width }]}>
+        value={{ editing: textMode, active: editField, activeEmpty: !dialing && draft === '', onEdit: beginEdit }}>
+        <View testID="print-frame" style={[styles.frame, { left: frame.x, top: frame.y, width: frame.width }]}>
           <Poster doc={display.doc} aspectRatio={aspect} footnote={bg.type === 'map' ? MAP_ATTRIBUTION : undefined}>
             {child}
           </Poster>
@@ -443,7 +499,8 @@ export default function Editor() {
         onPhotoCropEnd={(crop) => setPhotoOptions({ crop })}
         adjust={adjust}
         subjectUri={bg.type === 'photo' && bg.cutout?.enabled ? bg.cutout.uri : null}
-        between={fullBleed ? printLayer() : undefined}
+        // In text mode the text sits on top (above the tap-outside layer), so it isn't passed in here.
+        between={fullBleed && !textMode ? printLayer() : undefined}
       />
     );
 
@@ -649,8 +706,26 @@ export default function Editor() {
         </>
       )}
 
-      {/* The print area. Over a full-bleed photo it's drawn inside the canvas, under the lifted subject. */}
-      {fullBleed ? bg.type === 'map' && printLayer() : printLayer(canvas)}
+      {/*
+        The print area, and the tap-outside layer. Over a full-bleed photo the print area is
+        drawn inside the canvas (under the lifted subject). In text mode the text must stay
+        tappable, so it goes ABOVE the tap-outside layer; with any other tool open, the layer
+        goes on top so a tap anywhere outside the controls closes them.
+      */}
+      {textMode ? (
+        <>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeAll} accessibilityLabel="Finish editing" />
+          {/* The map/photo ignores taps here, so tapping it counts as "outside". */}
+          {fullBleed ? printLayer() : printLayer(<View style={styles.noTouch}>{canvas}</View>)}
+        </>
+      ) : (
+        <>
+          {fullBleed ? bg.type === 'map' && printLayer() : printLayer(canvas)}
+          {activeTool && (
+            <Pressable style={StyleSheet.absoluteFill} onPress={closeAll} accessibilityLabel="Close controls" />
+          )}
+        </>
+      )}
 
       {/* Upload: Bencho's Generate pill in the middle of the print area; the photo forms in. */}
       {showUpload && (
@@ -677,7 +752,6 @@ export default function Editor() {
         onBlur={() => setEditField(null)}
         onSubmitEditing={() => inputRef.current?.blur()}
         returnKeyType="done"
-        keyboardType={keyboardFor(editField)}
         autoCapitalize={editField === 'title' || editField?.startsWith('name') ? 'words' : 'sentences'}
         autoCorrect={false}
         style={styles.hiddenInput}
@@ -693,62 +767,84 @@ export default function Editor() {
         style={[styles.back, { top: insets.top + Spacing.two }]}>
         <Ionicons name="chevron-back" size={28} color={iconColour} style={shadow} />
       </Pressable>
-      <ToolRail
-        tools={tools}
-        value={activeTool}
-        onChange={openTool}
-        tone={tone}
-        style={[styles.rail, { top: insets.top + Spacing.two }]}
-      />
+      {/* Hidden while a dial is open: the dial sits up here (see below). */}
+      {!dialing && (
+        <ToolRail
+          tools={tools}
+          value={activeTool}
+          onChange={openTool}
+          tone={tone}
+          style={[styles.rail, { top: insets.top + Spacing.two }]}
+        />
+      )}
+
+      {/*
+        Text mode: its controls float at the TOP. Time, pace and distance sit in the lower
+        half of every design, so the field being edited stays visible and tappable.
+      */}
+      {textMode && (
+        <View
+          style={[styles.topControls, dialing && styles.topControlsWide, { top: insets.top + Spacing.two }]}
+          pointerEvents="box-none">
+          {dialing && editField ? (
+            fieldDial(editField)
+          ) : (
+            <View style={styles.inkRow} pointerEvents="box-none">
+              {look.inks.map((ink) => (
+                <GlassSwatch
+                  key={ink.hex}
+                  label={`Text colour ${ink.name}`}
+                  fill={ink.hex}
+                  showLabel={false}
+                  selected={doc.ink === ink.hex}
+                  onPress={() => update((d) => ({ ...d, ink: ink.hex }))}
+                />
+              ))}
+            </View>
+          )}
+          <AppText
+            variant="caption"
+            style={[styles.message, notice ? { color: Colors.accent } : null, styles.shadow]}
+            numberOfLines={2}>
+            {notice ??
+              (dialing
+                ? 'Drag or flick the dial. Tap outside to finish.'
+                : 'Tap any text to change it. Tap outside to finish.')}
+          </AppText>
+        </View>
+      )}
 
       <KeyboardAvoidingView
         style={styles.bottom}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         pointerEvents="box-none">
-        <View style={[styles.controls, { paddingBottom: insets.bottom + Spacing.three }]} pointerEvents="box-none">
-          {/* One line for messages, with Done on the right while a tool is open. */}
-          {(notice || activeTool) && (
-            <View style={styles.messageRow} pointerEvents="box-none">
+        {textMode ? null : activeTool ? (
+          // Controls on a see-through blurred band laid over the bottom of the preview.
+          // The preview behind it never moves or shrinks. No Done: tap outside to close.
+          <Glass style={[styles.tray, { paddingBottom: insets.bottom + Spacing.three }]}>
+            {notice && (
               <AppText
                 variant="caption"
-                style={[styles.message, { color: notice ? Colors.accent : iconColour }, shadow]}
+                style={[styles.message, { color: Colors.accent }, styles.shadow]}
                 numberOfLines={2}>
-                {notice ?? (textMode ? 'Tap any text to retype it. Pick a colour below.' : '')}
+                {notice}
               </AppText>
-              {activeTool && (
-                <Pressable accessibilityRole="button" onPress={() => openTool(null)} hitSlop={10}>
-                  <AppText style={[styles.done, shadow]}>Done</AppText>
-                </Pressable>
-              )}
-            </View>
-          )}
-
-          {textMode ? (
-            // Text mode: the design's colours straight on the poster, no tray.
-            <GlassRow>
-              {look.inks.map((ink) => (
-                <GlassSwatch
-                  key={ink.hex}
-                  label={ink.name}
-                  fill={ink.hex}
-                  selected={doc.ink === ink.hex}
-                  onPress={() => update((d) => ({ ...d, ink: ink.hex }))}
-                />
-              ))}
-            </GlassRow>
-          ) : activeTool ? (
-            controls[activeTool]?.()
-          ) : (
-            <View style={styles.bottomBar} pointerEvents="box-none">
-              <AppText variant="caption" style={[styles.hint, { color: iconColour }, shadow]} numberOfLines={2}>
-                {notice ? '' : hintText}
-              </AppText>
-              <Pressable accessibilityRole="button" onPress={next} style={styles.nextButton}>
-                <AppText style={styles.nextLabel}>Next</AppText>
-              </Pressable>
-            </View>
-          )}
-        </View>
+            )}
+            {controls[activeTool]?.()}
+          </Glass>
+        ) : (
+          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + Spacing.three }]} pointerEvents="box-none">
+            <AppText
+              variant="caption"
+              style={[styles.hint, { color: notice ? Colors.accent : iconColour }, shadow]}
+              numberOfLines={2}>
+              {notice ?? hintText}
+            </AppText>
+            <Pressable accessibilityRole="button" onPress={next} style={styles.nextButton}>
+              <AppText style={styles.nextLabel}>Next</AppText>
+            </Pressable>
+          </View>
+        )}
       </KeyboardAvoidingView>
 
       {/* Magic wand intro: what it does, over a blurred screen; the button in the middle runs it. */}
@@ -830,15 +926,27 @@ const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   center: { alignItems: 'center' },
   frame: { position: 'absolute', pointerEvents: 'box-none' },
-  uploadLayer: { position: 'absolute' },
+  // Only Generate's pill takes a touch; the rest of the print area stays tap-outside.
+  uploadLayer: { position: 'absolute', pointerEvents: 'box-none' },
   back: { position: 'absolute', left: Spacing.two, padding: Spacing.one },
   rail: { position: 'absolute', right: Spacing.three },
   shadow: { textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  controls: { paddingHorizontal: Spacing.three, gap: Spacing.three },
-  messageRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
-  message: { flex: 1 },
-  bottomBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  tray: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderWidth: 0,
+    paddingTop: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    gap: Spacing.three,
+  },
+  message: { color: '#fff', textAlign: 'center' },
+  noTouch: { pointerEvents: 'none' },
+  topControls: { position: 'absolute', left: 56, right: 56, alignItems: 'center', gap: Spacing.two },
+  inkRow: { flexDirection: 'row', gap: Spacing.three, pointerEvents: 'box-none' },
+  // The dial is 300 wide; the rail hides while it's open, so it can use the full width.
+  topControlsWide: { left: Spacing.three, right: Spacing.three },
+  bottomBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingHorizontal: Spacing.three },
   hint: { flex: 1 },
   nextButton: {
     backgroundColor: Colors.accent,
@@ -847,7 +955,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   nextLabel: { color: Colors.accentText, fontWeight: '700', fontSize: 16 },
-  done: { color: '#fff', fontWeight: '700', fontSize: 16 },
   card: { padding: Spacing.three, gap: Spacing.two },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   runnerTab: {

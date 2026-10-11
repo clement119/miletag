@@ -349,3 +349,12 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
   color: #fff;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);}
+
+/* Miletag: in `cover` mode only the pill takes a touch, so a tap anywhere else on the
+   preview reaches the editor's tap-outside layer and closes the controls. */
+.gen[data-cover="true"],
+.gen[data-cover="true"] .gen-card { pointer-events: none; }
+
+.gen[data-cover="true"] .gen-go { pointer-events: auto; }
+
+.gen[data-cover="true"][data-loading="true"] .gen-go { pointer-events: none; }

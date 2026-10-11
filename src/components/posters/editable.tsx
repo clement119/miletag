@@ -11,7 +11,10 @@ import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type FlexAlignType } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
-/** A text field on the poster. `location` is "City, Country" in one line. */
+/**
+ * A text field on the poster. `location` is "City, Country" in one line. Time, pace
+ * and distance are edited with a dial instead of the keyboard.
+ */
 export type TextField =
   | 'title'
   | 'date'
@@ -21,7 +24,8 @@ export type TextField =
   | 'distance'
   | `name:${number}`
   | `bib:${number}`
-  | `time:${number}`;
+  | `time:${number}`
+  | `pace:${number}`;
 
 type EditableState = {
   editing: boolean;
@@ -130,3 +134,8 @@ const styles = StyleSheet.create({
   },
   badgeActive: { backgroundColor: '#F5A623' },
 });
+
+/** Fields edited with a dial (Bencho's scrubber) rather than typed. */
+export function isDialField(field: TextField | null): boolean {
+  return !!field && (field === 'distance' || field.startsWith('time:') || field.startsWith('pace:'));
+}
