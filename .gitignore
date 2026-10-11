@@ -53,4 +53,4 @@ public/maplibre/
 docs/samples/*.png
 docs/samples/*.webp
 docs/samples/*.jpg
-public/mediapipe/
+public/onnx/
