@@ -1,23 +1,26 @@
-# Miletag — Product Requirements Document (v0.1, draft for brainstorm)
+# Miletag — Product Requirements Document (v0.2)
 
-> **Status:** Draft v0.1 · **Owner:** Clement · **Date:** 11 Oct 2026
-> **Open decisions are marked `⚑ DECISION`** — each has a recommended default so the build is not blocked.
+> **Status:** Draft v0.2 · **Owner:** Clement · **Date:** 11 Oct 2026
+> **Open decisions are marked `⚑ DECISION`.** Each has a recommended default so the build is not blocked.
+
+### Changelog
+| Version | Change |
+|---|---|
+| v0.2 | **Locked:** Malaysia-first launch (global later); free tier = virality with a "made with miletag" mini watermark; **no subscription**; free = digital export, paid = physical print/frame/delivery; **medal display SKUs added**; web ships alongside iOS + Android. Pricing moved to MYR. IAP risk largely removed. |
+| v0.1 | First draft for brainstorm. |
 
 ---
 
 ## 0. TL;DR
 
-**Miletag turns a race into wall art, and lets the runner see and shape the result before they pay.**
+**Miletag turns a race into wall art. Designing and exporting is free; you pay when you want it printed, framed (optionally with your medal) and delivered.**
 
-Competitors (e.g. Sprint Finish Studio) take an order, design it by hand in 2–3 working days, and the customer sees the art only once it's made. Miletag's edge is three things:
+- **Free:** a live editor and preview. You can drag the GPX route anywhere, use a photo or one of 5 curated map backgrounds, and include 1–6 runners. Export for social, with a small "made with miletag" mark.
+- **Paid (physical only):** gallery-quality print, frame, **medal display frame**, and the optional **3D-printed route** add-on, delivered to your door.
+- **Launch market:** 🇲🇾 Malaysia (MYR, local print partner, local payments). The architecture is ready for global from day one; the launch market is a config switch, not a rebuild.
+- **Platforms:** iOS + Android + Web from one Expo codebase.
 
-1. **Live preview editor.** WYSIWYG: what you see is what gets printed. You can drag, pinch and rotate the GPX route on the photo or map.
-2. **Map-as-background mode.** Choose from 5 curated map styles in place of a photo.
-3. **Physical 3D-printed route add-on.** A raised route relief mounted on the print, which no one in the reference set offers.
-
-It also covers **1–6 runners per print**, with **optional Strava import**, on a **freemium** model: design and preview for free, then pay for a hi-res file or a physical print.
-
-**Business model in one line:** free editor → watermarked preview → paid digital download / print / framed print / 3D-route upgrade.
+**Business model in one line:** the free export is the marketing engine (every shared story is an ad), and the physical product is the revenue.
 
 ---
 
@@ -25,42 +28,46 @@ It also covers **1–6 runners per print**, with **optional Strava import**, on 
 
 | Today (competitor flow) | Pain | Miletag answer |
 |---|---|---|
-| Fill a form, upload a photo + Strava screenshot, then wait 2–3 days | You pay blind and can't see the result | Instant live preview before checkout |
+| Fill a form, upload a photo + Strava screenshot, then wait 2–3 days | You pay blind and can't see the result | Instant live preview, free |
 | Designer chooses where the route sits | The route covers faces or misses the landmark | User drags, scales and rotates the route |
-| Screenshot of the route | Low fidelity, can't be restyled | GPX/FIT/TCX parsed to vector; Strava OAuth import |
-| 1–2 runners | Clubs, families and run crews are left out | 1–6 runners, with layout templates per count |
-| Photo backgrounds only | People without a good race photo drop off | 5 curated map styles |
-| Manual design labour | Doesn't scale, and margins go to a designer | Automated render pipeline, near-zero marginal design cost |
+| Screenshot of the route | Low fidelity | GPX/FIT/TCX parsed to vector; optional Strava OAuth |
+| 1–2 runners | Clubs, families and run crews are left out | 1–6 runners |
+| Photo only | People without a good photo drop off | 5 curated map styles |
+| Medal sits in a drawer | No place to display it with the story | **Medal display frames** that pair the print with the medal |
+| UK-centric players | Malaysian runners pay international shipping and FX | Local MYR pricing, local print, local delivery |
 
-**Why it matters financially:** the competitor charges about £18 for digital, £22 for a print and £42 framed, with about 2–3 days of human design time per order. Removing the human from the loop is the margin story; the preview is the conversion story.
+**Why Malaysia first:** a dense race calendar (city marathons, night runs, bridge races, Borneo trail/ultra events), a strong running-crew culture (multi-runner prints), and a competitive gap: no well-known local "race-to-wall-art" brand with a self-serve editor. ⚑ *Validate the market size with race participation numbers before committing marketing spend.*
 
 ---
 
 ## 2. Goals, non-goals, success metrics
 
 ### Goals (v1)
-- G1. A user can go from opening the app to a finished preview in **under 3 minutes**.
-- G2. The preview matches the print with **no material difference** (same render engine; see §8).
-- G3. Free-to-paid conversion is high enough to fund paid acquisition (target below).
-- G4. Fulfilment needs zero manual design touch for 95% or more of orders.
+- G1. Open the app to a finished preview in **under 3 minutes**.
+- G2. **WYSIWYG:** the preview matches the print, because the same render engine produces both (see §8).
+- G3. Free exports drive organic installs (viral loop; see §6.3).
+- G4. 95% or more of physical orders need zero manual design touch.
 
 ### Non-goals (v1)
-- Not a social network or a Strava replacement. There are no feeds or follows.
-- No arbitrary map styling (we are not building Snazzy Maps). Exactly 5 curated styles.
-- No B2B race-organiser portal in v1 (it's a strong v2 candidate; see §14).
-- No in-house printing. All printing goes through print-on-demand (POD) partners.
+- **No subscription.** No paid digital products.
+- Not a social network or Strava replacement.
+- No arbitrary map styling. Exactly 5 curated styles.
+- No in-house printing (partner print-on-demand, or POD). The exceptions are 3D route assembly and medal-frame QC, if done in-house.
+- No international shipping at launch (Malaysia only, Peninsular + East Malaysia).
 
 ### Success metrics (first 90 days post-launch)
 | Metric | Target | Why |
 |---|---|---|
-| Activation: % of installs that reach a full preview | ≥ 45% | Proves the editor is easy |
-| Preview → paid conversion | ≥ 6% | Freemium viability |
-| Average order value (AOV) | ≥ £38 | Framed + 3D upsell mix |
-| Attach rate of the 3D route add-on | ≥ 15% of physical orders | Validates the differentiator |
-| Reprint / complaint rate | ≤ 3% | WYSIWYG fidelity |
+| Activation: % of installs reaching a full preview | ≥ 45% | Editor usability |
+| Free export rate: % of previewers who export | ≥ 50% | Fuel for the viral loop |
+| Viral coefficient (installs from "made with miletag" shares per exporter) | ≥ 0.2 | The free tier is paying for itself |
+| Preview → physical order conversion | ≥ 4% | Revenue engine |
+| AOV (MYR) | ≥ RM 180 | Framed + medal + 3D mix |
+| Medal-frame share of physical orders | ≥ 25% | Validates the medal SKU |
+| Reprint / complaint rate | ≤ 3% | Fidelity |
 | Contribution margin per physical order | ≥ 40% | Unit economics |
 
-> ⚑ **DECISION (metrics):** these targets are placeholders. Replace them with numbers from your own financial model before launch.
+> ⚑ **DECISION (metrics):** placeholders. Replace them with your own model's numbers.
 
 ---
 
@@ -68,301 +75,337 @@ It also covers **1–6 runners per print**, with **optional Strava import**, on 
 
 | Persona | Description | Key need |
 |---|---|---|
-| **The Finisher** (core) | Just ran a marathon or half, emotional peak in the 0–14 days after the race | Commemorate it fast, while the feeling is fresh |
-| **The Gifter** | Partner, friend or parent buying for a runner | Easy without the runner's login, and gift-ready |
-| **The Crew** | 2–6 people who ran the same race (couple, family, club) | Everyone's name and time on one piece |
-| **The Collector** | Majors chaser (Berlin, London, Tokyo, etc.) | A consistent series look across races |
-
-**Insight:** the Gifter often **won't have Strava access** to the runner's account. That's why manual entry and GPX upload must be first-class, not a fallback.
+| **The Finisher** (core) | Just finished a race; emotional peak in the 0–14 days after | Commemorate it fast, show it off |
+| **The Medal Hoarder** | Has a drawer of medals and wants them displayed | Medal + story in one frame |
+| **The Crew** | 2–6 people from a run club, family or couple | Everyone's name and time on one piece |
+| **The Gifter** | Buying for a runner (birthday, Raya, Christmas, or a race finish) | Easy without the runner's Strava login |
+| **The Collector** | Chasing majors or a race series | Consistent series look |
 
 ---
 
 ## 4. Product scope: feature list & prioritisation
 
-**P0** = MVP launch · **P1** = fast follow (within 8 weeks of launch) · **P2** = later
+**P0** = MVP · **P1** = fast follow (≤ 8 weeks after launch) · **P2** = later
 
 | # | Feature | Priority |
 |---|---|---|
-| F1 | Template gallery (photo-based and map-based templates) | P0 |
-| F2 | Photo upload, crop and auto-legibility (scrim / tone) | P0 |
+| F1 | Template gallery (photo / map / **medal-ready** templates) | P0 |
+| F2 | Photo upload, crop, auto-legibility | P0 |
 | F3 | Route import: GPX/FIT/TCX upload + tutorial | P0 |
 | F4 | Route import: Strava OAuth (optional) | P0 |
-| F5 | Route manipulation: drag / pinch-scale / rotate / snap | P0 |
-| F6 | Race data entry: name, race, date, distance, time, pace (auto-calculated), bib | P0 |
-| F7 | Multi-runner, 1–6 people | P0 for 1–2, P1 for 3–6 ⚑ |
-| F8 | Map background mode, 5 curated styles | P0 |
-| F9 | Live preview + room mock-up ("see it on a wall") | P0 preview, P1 room mock-up |
-| F10 | Freemium gating: watermark, export resolution, template access | P0 |
-| F11 | Checkout: digital download, print, framed print | P0 |
-| F12 | 3D-printed route add-on (physical) | P1 ⚑ (see §7.6) |
-| F13 | Share-to-Instagram story export (watermarked = free marketing) | P0 |
-| F14 | Race preset library (official course GPX + date for top races) | P1 |
-| F15 | Gift flow: send an editable link to the runner, or a gift card | P1 |
-| F16 | Collaborative crew invite (each runner adds their own data) | P2 |
-| F17 | AR "place on wall" preview | P2 |
+| F5 | Route manipulation: drag / pinch / rotate / snap | P0 |
+| F6 | Race data entry (pace auto-calculated) | P0 |
+| F7 | Multi-runner: 1–2 at P0, 3–6 at P1 ⚑ | P0 / P1 |
+| F8 | Map background, 5 curated styles | P0 |
+| F9 | Live preview + room mock-up | P0 / P1 |
+| F10 | **Free export with "made with miletag" mini watermark** | P0 |
+| F11 | Physical checkout: print / framed / **medal frame** | P0 |
+| F12 | **Medal placement in editor** (medal zone + preview) | P0 |
+| F13 | 3D-printed route add-on | P1 ⚑ |
+| F14 | Malaysian race preset library (official course + date) | P1 |
+| F15 | Gift flow (send editable link / gift card) | P1 |
+| F16 | Crew collaborative invites | P2 |
+| F17 | AR wall preview | P2 |
+| F18 | Market expansion (SG → wider SEA → global) | P2 |
 
 ---
 
 ## 5. Core user flows
 
-### 5.1 Happy path (single runner, Strava)
+### 5.1 Happy path (single runner)
 ```
-Onboarding (3 swipe cards) → "Create" → choose template
- → Background: [Photo] or [Map]
- → Route: [Connect Strava] → pick activity → route + stats auto-filled
- → Editor: drag/scale/rotate route, edit text, pick colours
- → Preview (full-screen, watermarked) → Share (free) or Buy
- → Choose format: Digital / Print / Framed (+ 3D route add-on)
- → Size → Checkout → Order tracking
+Onboarding (3 cards) → Create → choose template (filter: Photo / Map / Medal-ready)
+ → Background: Photo or Map
+ → Route: Connect Strava (optional) or Upload GPX → stats auto-filled
+ → Editor: move route, edit text, colours, (medal zone if medal template)
+ → Preview
+ → [Export free] → share to IG / WhatsApp / save (with mini watermark)
+ → [Get it printed] → format: Print / Framed / Medal Frame (+3D route)
+   → size → address (MY) → pay (FPX / e-wallet / card) → tracking
 ```
 
 ### 5.2 No Strava (GPX upload)
-```
-Route step → "Upload GPX" → inline tutorial (per source: Strava web, Garmin Connect,
-Apple Health via export app, Coros, Polar, Suunto, Nike Run Club)
- → File picker → parse → if > 1 track: choose segment → editor
-```
-Fallbacks:
-- **Race preset** (P1): pick "London Marathon 2026" and we supply the official course line.
-- **Draw it** (P2): trace the route on a map.
+Inline, swipeable, per-platform tutorial covering Strava web, Garmin Connect, COROS, Polar, Suunto, Apple Health (via an export app) and Huawei Health. It includes an **"Email me these steps"** option, since export is often easier on desktop. Fallbacks:
+- **Race preset** (P1): choose a Malaysian race, and we supply the course line.
+- **Draw it** (P2).
 
 ### 5.3 Multi-runner (2–6)
-```
-Template step → choose "Crew" layout → set runner count (1–6)
- → For each runner: name, time, bib, (optional) own GPX or Strava
- → If same race: one shared route line, multiple colour-coded "finish markers" or
-   stat blocks. If different routes: overlay lines in distinct colours.
-```
+Choose a Crew layout and set the count. For each runner, enter name, time, bib, and optionally their own route.
+- **Same race:** one shared line plus a stat block per runner.
+- **Different races:** colour-coded overlay lines.
+
+Medal Crew Frame: one medal slot per runner (see §7.9).
 
 ### 5.4 Edit after purchase
-- A digital purchase allows **unlimited re-export of the same design** for 30 days (typo fixes).
-- Physical orders can be edited until the order is **locked for production** (target: 2 hours after payment, shown clearly).
+Physical orders are editable until **locked for production**, 2 hours after payment by default, with a visible countdown.
 
 ---
 
-## 6. Freemium model
+## 6. Monetisation: free export, paid physical
 
-### 6.1 Free vs paid
+### 6.1 What's free vs paid
 
-| Capability | Free | Paid (per design) | Miletag Pro (subscription) ⚑ |
-|---|---|---|---|
-| Templates | 3 free templates | All | All, plus early access |
-| Map styles | 2 of 5 | All 5 | All 5 |
-| Runners per design | 1–2 | Up to 6 | Up to 6 |
-| Preview | Full, watermarked | Unwatermarked | Unwatermarked |
-| Export | 1080px social image, watermarked | Print-res PDF/PNG (300 DPI) | Unlimited hi-res exports |
-| Physical print | Purchasable | Purchasable | 15% off prints |
-
-### 6.2 Indicative pricing (GBP, to validate)
-
-| Product | Price | Competitor ref |
+| Capability | Free | Paid (physical order) |
 |---|---|---|
-| Digital download (hi-res) | £12.99 | £18 |
-| Unframed print (A3 / A2) | £24 / £34 | £22 |
-| Framed print (A3 / A2) | £49 / £69 | £42 |
-| 3D route add-on | +£25–35 | n/a (differentiator) |
-| Pro subscription | £4.99/mo or £29.99/yr | n/a |
+| All templates, all 5 maps, 1–6 runners | ✅ | ✅ |
+| Live preview | ✅ | ✅ |
+| Export | ✅ Social-resolution PNG/JPG with a **"made with miletag"** mini watermark | n/a, they get the physical product |
+| Print-resolution file | ❌ | Used internally for production (not delivered) ⚑ |
+| Gallery-quality print, framing, medal frame, 3D route, delivery | ❌ | ✅ |
 
-> **Challenge:** a subscription for something people buy 1–3 times a year is a weak fit. My recommendation is **launch without Pro**. Use pay-per-design and physical upsell; only add Pro if data shows repeat creators (collectors, clubs).
+> **Why everything is free in the editor:** you want maximum exports, because exports are distribution. Gating templates or maps would reduce shares without adding revenue, since revenue only comes from physical orders.
 
-### 6.3 Payments: the app store tax (critical)
-- **Physical goods** (prints, frames, 3D add-on) **may use Stripe**, not Apple/Google in-app purchase (IAP). There's no 15–30% cut. ✅
-- **Digital goods consumed in-app** (hi-res download, template unlocks, Pro) **must use IAP** on iOS and Android, so 15–30% goes to the platform. You can only steer users to web checkout where the law allows it (e.g. US external links after the 2025 Epic ruling, and EU DMA arrangements). Rules vary by region and change often, so verify them at build time.
-- **Recommendation:** price digital to absorb IAP (Small Business Program = 15%), and push the **physical** product as the hero. Also ship an Expo **web** build, where digital can go through Stripe at full margin (see §9).
+### 6.2 ⚠️ Challenge: free export resolution (the cannibalisation risk)
+If the free export is **print resolution**, users can take it to a RM 10 print shop, and your paid print loses to a photocopy.
+
+**Recommendation (default):** free exports are limited to **screen/social sizes**:
+- IG Story 1080×1920
+- IG Post 1080×1350
+- Phone wallpaper (device resolution, up to about 1290×2796)
+
+These look perfect on a phone and soft on an A3 wall. Print-resolution files are **never** exported; they're rendered server-side only for production.
+
+⚑ **DECISION:** confirm. The alternative is a paid hi-res digital download, but that brings back IAP (§6.5) and contradicts "no digital sales".
+
+### 6.3 The watermark (viral loop)
+- **Placement:** bottom-centre or bottom-right, inside the safe area. **Small** (about 2–3% of image height), 60–70% opacity, and adaptive colour (light on dark, dark on light).
+- **Copy:** `made with miletag` + a tiny route-pin glyph. It's optionally followed by `miletag.app` on the Story export (a link sticker can't be added programmatically, so the URL text does that job).
+- **Rules:**
+  - The watermark can't be removed on free exports. It's baked into the pixels at render time, not overlaid in the UI.
+  - **Physical prints carry no watermark.** ⚑ Optionally add a small `miletag` back-label / frame sticker with a QR code, for referral.
+- **Referral hook (P1):** the export includes a short code ("Made with miletag · code CLEM10"). New users get a discount on their first print, and the sharer gets credit.
+
+### 6.4 Indicative pricing (MYR, to validate)
+
+| SKU | Size | Price (RM) |
+|---|---|---|
+| Fine-art print, unframed | A3 / A2 | 79 / 119 |
+| Framed print (black / oak / white) | A3 / A2 | 189 / 269 |
+| **Medal Shadow Box** (print + medal compartment) | A3 / 40×50 | 289 / 349 |
+| **Print + Medal Hanger Bar** | A3 framed + bar | 239 |
+| **Crew Medal Box** (2–6 medals) | 50×70 landscape | 449–549 |
+| 3D route add-on | Framed / shadow box only | +99 |
+| Delivery | Peninsular / East MY | Free over RM 150 / flat fee ⚑ |
+
+> Check: these prices must clear POD + frame + packaging + courier + payment fees + SST at ≥ 40% contribution margin. Build the unit-economics sheet before you finalise them.
+
+### 6.5 Payments (Malaysia)
+- **Since there are no digital sales, app store IAP doesn't apply.** Apple and Google allow physical goods to be paid through your own gateway. ✅ This removes the 15–30% platform cut that was the big risk in v0.1.
+- **Payment methods expected in Malaysia:**
+  - **FPX** (online banking)
+  - **DuitNow QR**
+  - **e-wallets:** Touch 'n Go eWallet, GrabPay, Boost, ShopeePay
+  - cards
+  - **BNPL** (Atome / Grab PayLater) for higher-value frames
+- **Gateway options:** Stripe (MY supports cards, FPX and GrabPay), or a local aggregator (e.g. Billplz, iPay88, Razer Merchant Services) for wider e-wallet coverage. ⚑ *Pick based on e-wallet coverage + fees; verify current method support.*
+- **Tax:** confirm SST treatment (sales tax on goods vs service tax on design/printing services, and the registration threshold) with a Malaysian tax adviser before pricing.
 
 ---
 
 ## 7. Feature requirements (detail)
 
 ### 7.1 Template system
-- Templates are **data, not code**: a JSON "design document" (see §8.2) defines the canvas size, layers, text slots, fonts, colour tokens and route slot.
-- v1 template set, based on the reference images:
-  1. **Poster Classic**: title + date top, map/photo square, name + bib + 3 stats bottom (image 1)
-  2. **Duo / Crew Split**: two or more names + times in columns (image 2)
-  3. **Big Time**: oversized ghosted finish time, route overlay on the photo (image 3)
-  4. **Editorial**: date + race title stacked, stats bar at the bottom (image 4)
-  5. **Mono Tech**: B&W photo, neon route, monospace stat line (image 5)
-- Each template declares `supportsRunners: [1,2,3,4,5,6]` and a layout per count. If a template can't fit 6 legibly, it doesn't offer 6.
+Templates are **data**: a JSON design document (§8.2). The v1 set, based on the reference images:
+
+| Template | Look | Runners | Medal-ready |
+|---|---|---|---|
+| **Poster Classic** | Title/date top, map/photo square, name + bib + 3 stats | 1–2 | Variant |
+| **Crew Split** | Names + times in columns | 2–6 | Variant |
+| **Big Time** | Oversized ghosted finish time, route over photo | 1 | — |
+| **Editorial** | Stacked date + title, bottom stat bar | 1–2 | — |
+| **Mono Tech** | B&W photo, neon route, monospace stats | 1–3 | — |
+| **Medal Classic** *(new)* | Print upper ~65%, medal zone lower ~35% | 1 | ✅ |
+| **Medal Side** *(new)* | Landscape: print left, medal right | 1 | ✅ |
+| **Crew Medal Row** *(new)* | Landscape: shared route top, row of 2–6 medal slots with name/time under each | 2–6 | ✅ |
+
+Each template declares `supportsRunners`, `supportsMedal`, and `compatibleSkus`. The UI only offers combinations that print correctly.
 
 ### 7.2 Photo handling
-- Inputs: camera roll (expo-image-picker), with a minimum resolution check.
-- **Print-quality gate:** the effective DPI at the chosen size is computed live.
-  - Green: ≥ 200 DPI
-  - Amber: 150–199 DPI, "may look soft"
-  - Red: < 150 DPI, with the print blocked or a warning plus acknowledgement ⚑
-- Auto-legibility: an adjustable bottom/top scrim, a B&W filter and a contrast slider.
-- P1: subject-aware route placement suggestion (avoid faces), using on-device face detection to propose an initial route position.
+- Live print-quality gate (effective DPI at the chosen size): green ≥ 200, amber 150–199, red < 150 (warn + acknowledge).
+- Auto-legibility: adjustable scrim, B&W, contrast.
+- P1: face-aware initial route placement.
 
-### 7.3 Route import (GPX + Strava)
-- **Formats:** GPX (P0), FIT and TCX (P1). Parsing runs on-device for speed and privacy, with a server fallback for large FIT files.
-- **Processing pipeline:**
-  1. Parse
-  2. Strip a privacy zone (trim the first/last N metres, default 200 m, user-adjustable). This matters for training runs that start at home.
-  3. Simplify (Ramer–Douglas–Peucker) to about 500–2,000 points
-  4. Project to Web Mercator
-  5. Normalise to a unit box
-  6. Store as SVG-path-ready coordinates
-- **Auto-stats from file:** distance, moving time and pace. These are editable, because official chip time ≠ watch time. Default to **user-entered chip time**.
-- **Tutorial:** short, swipeable, per-platform cards with screenshots (Strava web → ⋯ → Export GPX; Garmin Connect → ⚙ → Export to GPX; etc.), plus a "Send me this link by email" option, since export is often easier on desktop.
+### 7.3 Route import
+- GPX at P0; FIT and TCX at P1. Parsing runs on-device.
+- Privacy-zone trim (default 200 m at both ends). Simplify (Ramer–Douglas–Peucker, RDP), project, normalise.
+- Auto-stats come from the file but are editable. **Official chip time is the default.**
 - **Strava OAuth (optional):**
-  - Scopes: `activity:read` (plus `activity:read_all` only if the user opts in to private activities)
-  - Pick from the last 50 runs, with races surfaced first (`workout_type = race`)
-  - Pull the polyline + stats
-- **Strava compliance risks:** see §12. You **must** apply for production rate limits and athlete capacity early. New Strava apps start limited to a single athlete until reviewed.
+  - `activity:read` scope
+  - races surfaced first (`workout_type = race`)
+  - apply for production athlete capacity early (see §12)
 
-### 7.4 Route manipulation (the core differentiator)
+### 7.4 Route manipulation (core differentiator)
 - **Gestures:**
-  - One-finger drag = move
+  - Drag = move
   - Pinch = scale
-  - Two-finger twist = rotate
-  - Double-tap = reset to auto-fit
-- **Controls:** stroke width, colour (template palette + custom), glow/shadow, and start/finish markers on or off.
-- **Snapping:** centre, thirds, and safe-area guides (bleed + frame-rabbet margin) with light haptic ticks (expo-haptics).
-- **Map mode:** the route is **geo-locked** to the map. The user pans/zooms the map and route together, and the stroke stays geographically correct.
-- **Photo mode:** the route floats freely as a graphic.
-- **Multi-route:** each runner's route is its own layer, selected via a chip row.
-- Performance target: 60 fps gestures on mid-range Android (e.g. a Pixel 6a-class device). Gesture handling uses react-native-gesture-handler + Reanimated shared values, rendering on Skia.
+  - Twist = rotate
+  - Double-tap = reset
+- **Controls:** stroke width/colour, glow, start/finish markers.
+- **Snapping** to centre, thirds and safe areas (bleed, frame rabbet, **medal zone exclusion**), with haptic ticks.
+- **Map mode:** the route is geo-locked to the map. **Photo mode:** the route floats freely.
+- 60 fps on mid-range Android (Gesture Handler + Reanimated + Skia).
 
-### 7.5 Map background mode (5 curated styles)
+### 7.5 Map backgrounds (5 curated styles)
+| Style | Look |
+|---|---|
+| **Graphite** | Dark grey streets, white roads, accent route (image 1) |
+| **Paper** | Off-white, thin black lines, minimal |
+| **Blueprint** | Navy with fine cyan lines |
+| **Noir** | Black with faint white lines, high contrast |
+| **Terrain** | Muted hillshade + contours (Borneo trail / ultra) |
 
-| Style | Look | Reference |
-|---|---|---|
-| **Graphite** | Dark grey streets, white roads, accent route | Image 1 |
-| **Paper** | Off-white, thin black streets, minimal | Scandinavian print look |
-| **Blueprint** | Navy with fine cyan lines | Technical / architectural |
-| **Noir** | Pure black with faint white lines | Gallery look, high contrast |
-| **Terrain** | Muted hillshade + contours | Trail / ultra runners |
+Auto-framed to the route. Self-hosted OpenStreetMap (OSM) tiles + MapLibre (see §8.4).
 
-- The map auto-frames to the route bounds plus padding. The user can then pan/zoom/rotate.
-- Water, parks and roads are toggleable per style (within guardrails).
-- **Tech and licensing:** see §8.4. This is the biggest hidden cost/legal risk in the product.
-
-### 7.6 3D-printed route add-on ⚑ needs your definition
-My working interpretation is a **physical raised relief of the route line**, 3D-printed (PLA/resin) and mounted on the print or the frame glass. Optionally it includes **elevation extrusion**, where the line height follows the elevation profile.
-
-- **Generation:** the server converts the user's exact positioned route into an STL/3MF, scaled to its print position.
-- **Production options:**
-  - (a) In-house printer farm: best margin, but you own the operations.
-  - (b) A partner such as Craftcloud, Shapeways or a local maker: less control, more cost.
-- **Assembly is the hard part.** Someone has to align the relief to the print. That breaks the "zero manual touch" goal and needs a jig or registration marks.
-- **Recommendation:** launch it as a **P1 "limited drop"**, starting with framed A3 only, one colour and in-house assembly. Measure attach rate before scaling.
+### 7.6 3D-printed route add-on ⚑ (still needs your definition)
+Working interpretation: a raised route relief, optionally elevation-extruded, mounted on the print.
+- **Synergy:** the **Medal Shadow Box has the depth to house the 3D relief**, so bundle them as a "Hero Box" (print + medal + 3D route).
+- **Launch:** P1 limited drop, framed/shadow box only, assembled in-house with a jig.
 
 ### 7.7 Preview & mock-ups
-- Full-screen preview at device resolution, from the same render document as the print.
-- Room mock-ups (P1): 3–4 lifestyle scenes (a frame leaning on a wall, as in images 1 and 5) with perspective-warped compositing.
-- Watermark: diagonal, subtle, non-removable on free exports.
+Full-screen preview from the same design document. Room mock-ups (P1) include the shadow-box depth and the medal render.
 
-### 7.8 Checkout & fulfilment
-- **Formats & sizes (v1):** A3, A2 and 50×70 cm. Frames in black, oak and white. Paper is 200 gsm+ matte fine art.
-- **POD partner:** Prodigi or Gelato (global routing, API, framed options). Send a print-ready PDF (300 DPI, 3 mm bleed, CMYK-safe palette) through the partner API.
-- **Order states:** Paid → Editable window → Locked → Rendered → Sent to printer → Shipped → Delivered. Push notifications fire on each state change.
-- **Digital:** instant download plus an email copy and in-app library storage.
+### 7.8 Checkout & fulfilment (Malaysia)
+- **Print partner:** a **local Malaysian fine-art print + framing partner** (Klang Valley), so delivery takes days, not weeks, with no import duty or FX. Requirements:
+  - API or reliable SFTP/email order intake
+  - 200 gsm+ matte fine-art paper
+  - shadow-box capability
+  - QC photos per order
+  ⚑ *Shortlist 2–3 partners. Run a test print of each SKU.*
+- **Courier:** J&T / Pos Laju / Ninja Van / DHL eCommerce MY, with tracking via an aggregator (e.g. EasyParcel). Frames need rigid packaging; **East Malaysia (Sabah / Sarawak) has a different lead time and cost**, so show it at checkout.
+- **Order states:** Paid → Editable (2 h) → Locked → Rendered → At printer → QC → Shipped → Delivered, with push notifications.
+- **Global later:** keep a `fulfilmentRegion` abstraction. Global POD (Prodigi / Gelato) plugs in per region without app changes.
+
+### 7.9 Medal placement (new)
+
+**Principle: we never take custody of the customer's medal.** Medals are irreplaceable, and shipping them to us creates liability and slows fulfilment. Every medal SKU is built so the **customer inserts their own medal** at home in under 2 minutes.
+
+**SKUs**
+
+| SKU | Construction | Insertion | Notes |
+|---|---|---|---|
+| **Medal Shadow Box** | Deep box frame (~4–5 cm), print mounted inside, medal zone with a hidden pin/hook + ribbon channel | Opens from the back (turn buttons / hinged back) | Hero SKU; fits the 3D route too |
+| **Print + Medal Hanger Bar** | Standard framed print + matching wood/acrylic bar below, laser-engraved with race name/date | Hang the medal on the bar hooks | Lowest operations cost, flat-pack friendly |
+| **Crew Medal Box** | Wide landscape shadow box, 2–6 hooks, each labelled with runner name + time | Back opening | For crews; high AOV |
+
+**Editor requirements**
+1. A medal template shows a **medal zone** as a dashed placeholder. Text and route snap away from it (exclusion zone).
+2. **Medal preview:** the user can (a) **photograph their medal** (on-device background removal, P1) or (b) pick a generic medal silhouette. Preview only; it's never printed.
+3. **Fit check:** the user enters the medal diameter (mm) and ribbon width. Typical medals are about 60–100 mm. We warn if it exceeds the slot (e.g. max 110 mm for A3, ribbon up to 40 mm). Show a "how to measure" tooltip.
+4. **Ribbon handling:** choose from three options:
+   - (a) ribbon hung visible in a channel above the medal
+   - (b) ribbon folded behind
+   - (c) ribbon removed
+   The preview reflects the choice.
+5. **Crew Medal Row:** one slot per runner, aligned with each runner's stat block, so the layout auto-distributes for 2–6 runners.
+6. Print file: the medal zone is printed as a **subtle backing panel** (colour/texture from the template) with optional engraved-look text ("FINISHER · 42.195 KM"), so it looks intentional even before the medal goes in.
+
+**Fulfilment notes:** shadow boxes are heavier and bulkier, so check courier volumetric weight in pricing. Include a printed insertion card + QR video guide in every box.
 
 ---
 
 ## 8. Technical architecture
 
-### 8.1 Stack (recommended)
+### 8.1 Stack
 | Layer | Choice | Why |
 |---|---|---|
-| App | **Expo (SDK latest) + Expo Router**, TypeScript | iOS + Android + **web** from one codebase |
-| Rendering | **@shopify/react-native-skia** | One drawing engine for preview, and also runs in Node for the server render, so WYSIWYG |
-| Gestures/anim | react-native-gesture-handler + **Reanimated 3** (+ Moti for declarative transitions) | Native-thread 60 fps |
-| Styling | **NativeWind** (Tailwind for RN) | Lets us port the Tailwind-based UI references (see §10) |
-| Maps | **MapLibre** (`@maplibre/maplibre-react-native`) with self-hosted vector tiles (OSM / Protomaps) and 5 custom style JSONs | No per-print map licence fees; full style control |
-| Backend | **Supabase** (Postgres, Auth, Storage, Edge Functions) | Fast to build, Row Level Security (RLS) for user data |
-| Render worker | Node + Skia (or headless Chromium as a fallback) on a queue (e.g. Cloud Run) | Print-res PNG/PDF |
-| Payments | **Stripe** (physical + web), **RevenueCat** (wrapper over IAP for digital) | Handles the store-rules split |
-| Fulfilment | Prodigi / Gelato API | Global POD |
-| Analytics | PostHog | Funnel + feature flags for pricing tests |
+| App | **Expo + Expo Router** (TypeScript), **iOS + Android + Web** | One codebase, three platforms |
+| Rendering | **@shopify/react-native-skia** (runs on native, web via CanvasKit, and Node) | One engine for preview + production render, so WYSIWYG |
+| Gestures / anim | Gesture Handler + **Reanimated** + Moti | Native-thread 60 fps |
+| Styling | **NativeWind** | Ports the Tailwind-based UI references |
+| Maps | **MapLibre** + self-hosted OSM vector tiles (Protomaps), 5 style JSONs | No per-print licence fees |
+| Backend | **Supabase** (Postgres, Auth, Storage, Edge Functions); region close to MY (e.g. Singapore) | Latency + data residency |
+| Render worker | Node + Skia + headless MapLibre, on a job queue | Print-res PDF |
+| Payments | Stripe and/or local gateway (§6.5) | MY payment methods |
+| Fulfilment | Local partner adapter → later Prodigi / Gelato adapters | `fulfilmentRegion` abstraction |
+| Analytics | PostHog | Funnel, viral loop attribution, feature flags |
 
-### 8.2 The design document (single source of truth)
-Every design is one JSON document, rendered identically by the device and the server:
+> **No RevenueCat / IAP needed** (no digital sales).
+
+### 8.2 Design document (single source of truth)
 ```json
 {
-  "templateId": "poster-classic",
-  "canvas": { "size": "A3", "orientation": "portrait", "bleedMm": 3 },
-  "background": { "type": "map", "styleId": "graphite", "center": [2.33, 48.86], "zoom": 12.1, "bearing": 0 }
-              /* or { "type": "photo", "assetId": "...", "crop": {...}, "filters": {...} } */,
-  "runners": [
-    { "name": "Lucien Moreau", "bib": "11344", "time": "04:34:44", "distanceKm": 42.195,
-      "routeId": "r_1", "color": "#F5A623" }
-  ],
-  "routes": [{ "id": "r_1", "geo": "encoded-polyline", "transform": { "x": 0.5, "y": 0.45, "scale": 0.8, "rotation": 0 },
+  "schemaVersion": 2,
+  "templateId": "medal-classic",
+  "sku": { "type": "medal-shadow-box", "size": "A3", "frame": "oak" },
+  "canvas": { "orientation": "portrait", "bleedMm": 3 },
+  "background": { "type": "map", "styleId": "graphite", "center": [101.69, 3.14], "zoom": 12.3, "bearing": 0 },
+  "runners": [{ "name": "Clement", "bib": "21095", "time": "03:58:12", "distanceKm": 42.195,
+                "routeId": "r_1", "color": "#F5A623", "medalSlot": 0 }],
+  "routes": [{ "id": "r_1", "geo": "encoded-polyline",
+               "transform": { "x": 0.5, "y": 0.38, "scale": 0.8, "rotation": 0 },
                "stroke": { "width": 2.5, "glow": false }, "markers": true }],
-  "text": { "title": "MARATHON DE PARIS", "subtitle": "13 APRIL 2025" },
+  "medals": [{ "slot": 0, "diameterMm": 85, "ribbon": "visible", "previewAssetId": "m_1" }],
+  "text": { "title": "KL MARATHON", "subtitle": "5 OCTOBER 2026" },
+  "export": { "watermark": true },
   "addons": { "route3d": false }
 }
 ```
-Versioned (`schemaVersion`) so old orders still re-render after template changes.
 
 ### 8.3 Render pipeline
-- **Client:** Skia canvas at screen resolution, live.
-- **Server:** Skia at the target pixel size (A2 @ 300 DPI ≈ 4961 × 7016 px), then PDF with bleed, then storage, then the POD API.
-- **Map layer:** server-side MapLibre Native (headless) renders the map at print resolution with the same style JSON, so map and route align exactly.
+- **Client:** Skia live preview. Free exports render **on-device** at social resolution with the watermark baked in, so there's zero server cost for the free tier.
+- **Server (paid only):** Skia + headless MapLibre at print size (A2 @ 300 DPI ≈ 4961×7016), then a PDF with bleed (+ medal-zone backing panel), then the partner.
+- Visual regression tests compare client and server renders per template.
 
-### 8.4 Map licensing ⚠️
-- **Mapbox / Google** static maps have **restrictive or extra-cost terms for printed commercial products.** Avoid them, or get a written print licence.
-- **Recommended:** OpenStreetMap data (ODbL) via Protomaps/OpenMapTiles, self-hosted, rendered with MapLibre. The only obligation is **attribution** ("© OpenStreetMap contributors"), which can sit in small print on the poster edge or back label. Confirm the exact attribution placement for printed works.
+### 8.4 Map licensing
+Self-hosted OSM (ODbL) + MapLibre. Attribution "© OpenStreetMap contributors" goes in small print on the poster edge or back label. Avoid Mapbox/Google static maps for print unless you have a written licence.
 
-### 8.5 Data model (core tables)
-`users`, `strava_connections` (encrypted tokens), `designs` (design doc JSONB, status), `assets` (photos, GPX), `routes`, `orders`, `order_items`, `renders`, `templates`, `map_styles`, `race_presets`.
+### 8.5 Data model
+`users`, `strava_connections`, `designs` (JSONB), `assets`, `routes`, `templates`, `map_styles`, `skus` (type, size, frame, medalSlots, maxMedalMm, region availability), `orders`, `order_items`, `renders`, `exports` (for viral attribution), `referral_codes`, `race_presets` (region-tagged), `fulfilment_partners` (region-tagged).
 
 ---
 
-## 9. Platforms
-- **iOS + Android via Expo** (as requested).
-- **⚑ Strong recommendation: also ship Expo Web (same codebase).** Reasons:
-  - (1) Gifters and GPX exporters are often on desktop.
-  - (2) Web checkout avoids IAP on digital.
-  - (3) SEO landing pages per race ("London Marathon 2026 print") are your cheapest acquisition channel.
-  - (4) It removes app-install friction on a one-off purchase.
+## 9. Platforms (locked)
+- **iOS, Android, Web** from one Expo codebase, all at launch.
+- Web is also the **SEO surface**: one landing page per Malaysian race (e.g. "KL Marathon 2026 poster"), opening straight into the editor with the course preset.
+- Feature parity across platforms. On web, gesture editing uses mouse/trackpad equivalents (drag, scroll-zoom, shift-drag rotate).
 
 ---
 
 ## 10. UI / design system
 
-### 10.1 Reality check on the requested references
-All three references are **web React + Tailwind + Motion (framer-motion)** libraries:
-- **SmoothUI** (educlopez/smoothui): shadcn-style registry. Components include DynamicIsland, ExpandableCards, ScrollableCardStack, AnimatedInput, FluidMorph, DotMorphButton, ButtonCopy, ScrambleHover, TypewriterText.
-- **Amicro** (@subhanhq/amicro): micro-transitions. These include fade-in/up, zoom-in, tilt-card, magnetic-button, text-reveal, and card layouts (ARC fan, CoverFlow, Cascade Stagger, Time Machine Stack, Interactive Carousel).
-- **Bencho** (bencho.dev): interactive React components & micro-interactions.
+### 10.1 Reality check on the references
+SmoothUI, Amicro and Bencho are **web React + Tailwind + Motion** libraries, so they don't run natively.
+- **Native:** port the motion language to Reanimated + Moti + NativeWind.
+- **Web:** marketing pages can use the originals directly.
+- **Never** use DOM components in the editor.
 
-**They will not run in a native Expo app as-is** (they rely on the DOM, CSS and framer-motion). The plan:
-1. **Port the motion language, not the code.** Re-implement chosen components in **Reanimated 3 + Moti + NativeWind**, keeping the timing/easing curves from the source.
-2. On **Expo Web**, the original components can be used directly for marketing pages.
-3. Optionally, use Expo DOM components (`'use dom'`) for non-critical, non-gesture screens. **Never** use them in the editor, where performance matters.
-
-### 10.2 Component mapping (where each reference is used)
-
-| App surface | Reference component | Native implementation |
+### 10.2 Component mapping
+| App surface | Reference | Native implementation |
 |---|---|---|
-| Template gallery | Amicro **CoverFlow Carousel** / SmoothUI **ScrollableCardStack** | Reanimated carousel with 3D perspective |
-| Onboarding | Amicro **Time Machine Stack** + **text-reveal** | Stacked cards, swipe to advance |
-| Format picker (Digital/Print/Framed) | SmoothUI **ExpandableCards** | Layout animation (Reanimated `LinearTransition`) |
-| Order status / render progress | SmoothUI **DynamicIsland** | Top pill that morphs: "Rendering… → Ready" |
-| Big CTA buttons | Amicro **magnetic-button**, SmoothUI **DotMorphButton** | Press scale + haptic + morph to spinner/check |
-| Race data inputs | SmoothUI **AnimatedInput** | Floating label + focus underline |
-| Finish-time reveal on preview | SmoothUI **ScrambleHover** / **TypewriterText** | Digits scramble then settle (on first preview) |
-| Template/runner cards | Amicro **tilt-card** | Gyroscope tilt (expo-sensors), subtle |
-| Crew (multi-runner) picker | Amicro **ARC / Corner Fan** card layouts | Fanned runner cards, 1–6 |
-| Share/copy link | SmoothUI **ButtonCopy** | Icon morph copy → check |
-| Screen entrances | Amicro **fade-up / zoom-in** presets | Moti presets, 180–260 ms |
+| Template gallery | Amicro **CoverFlow** / SmoothUI **ScrollableCardStack** | Reanimated 3D carousel |
+| Onboarding | Amicro **Time Machine Stack** + **text-reveal** | Swipe stack |
+| Format picker (Print / Framed / Medal Box) | SmoothUI **ExpandableCards** | Layout transitions |
+| Render / order status | SmoothUI **DynamicIsland** | Morphing top pill |
+| CTAs ("Export", "Get it printed") | Amicro **magnetic-button**, SmoothUI **DotMorphButton** | Press scale + haptic + morph to ✓ |
+| Inputs | SmoothUI **AnimatedInput** | Floating label |
+| Finish-time reveal | SmoothUI **ScrambleHover / TypewriterText** | Digit scramble → settle |
+| Template / medal cards | Amicro **tilt-card** | Gyro tilt (subtle) |
+| Crew picker (1–6) | Amicro **ARC / Corner Fan** | Fanned runner cards |
+| Medal "drop-in" moment | Amicro **zoom-in** + spring | Medal drops into slot on preview |
+| Share / copy | SmoothUI **ButtonCopy** | Icon morph |
+| Screen entrances | Amicro **fade-up / zoom-in** | Moti presets, 180–260 ms |
 
 ### 10.3 Visual language
-- **Tone:** editorial, gallery-like, athletic (matching the reference prints). The UI stays monochrome so the user's art is the colour.
-- **Type:** a condensed grotesk for display (DIN-like, as in image 1) + a neutral sans for UI + a mono for stats (as in image 5).
-- **Colour:** neutral greyscale with one accent (e.g. signal orange `#F5A623` or neon yellow, as in image 5). Dark mode is the default, since the art pops on dark.
-- **Motion rules:** 150–300 ms, spring-based, always interruptible. Respect "Reduce Motion" (OS setting). Use haptics on snap / select / success.
+Editorial, gallery-like, athletic. A monochrome UI, so the user's art is the colour. Condensed grotesk display + neutral UI sans + mono for stats. One accent colour. Dark mode by default. Motion: 150–300 ms springs, interruptible, respects Reduce Motion (OS setting), with haptics on snap/select/success.
 
 ---
 
 ## 11. Non-functional requirements
-- **Performance:** editor at 60 fps on mid-range devices; preview in under 1 s after any change; print render under 60 s (P95).
-- **Fidelity:** pixel-diff between client preview and server render, with automated visual regression tests per template.
-- **Privacy:** GPS tracks reveal home addresses, so the privacy-zone trim is on by default. Track data is never shared publicly. GDPR/UK GDPR: export + delete account.
-- **Accessibility:** dynamic type in the UI, VoiceOver labels, Reduce Motion support.
-- **Offline:** the editor works offline once assets are loaded; checkout requires a connection.
+- **Performance:**
+  - editor at 60 fps on mid-range Android (the dominant Malaysian device segment)
+  - preview under 1 s
+  - free export under 3 s on-device
+  - print render under 60 s (P95)
+- **Privacy:**
+  - Malaysia PDPA (Personal Data Protection Act 2010, as amended 2024)
+  - GDPR-ready, for global expansion later
+  - privacy-zone trim on by default
+  - account export + delete
+- **Localisation:**
+  - English at launch; Bahasa Malaysia UI at P1
+  - MYR, DD/MM/YYYY, km
+- **Accessibility:** dynamic type, screen-reader labels, Reduce Motion.
+- **Offline:** the editor and free export work offline once assets are loaded.
 
 ---
 
@@ -370,20 +413,27 @@ All three references are **web React + Tailwind + Motion (framer-motion)** libra
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| **Strava API terms** (Nov 2024 update: data only displayed to that athlete, no AI/ML use, branding rules; single-athlete limit until review) | Strava import blocked at scale | Apply for review early; GPX upload is first-class anyway; follow "Powered by Strava" brand rules; never train on data |
-| **App store IAP rules** for digital goods | 15–30% margin hit | Physical = Stripe; digital priced for IAP; web checkout |
-| **Map licensing** for print | Legal / cost | Self-hosted OSM + MapLibre, attribution on the print |
-| **Race trademark** ("London Marathon", logos) | Takedown / legal | Use plain text only, no official logos; T&Cs make the user responsible for content; review with a lawyer; consider official race partnerships (v2) |
-| **User photo rights** (official race photos are often © of the photography company) | IP claims | Upload checkbox: "I own or have rights to this photo"; block obvious watermarked race-photo uploads (P1 detection) |
-| **3D add-on operations** | Breaks automation, slow fulfilment | Limited P1 drop, jig-based assembly, measure before scaling |
-| **Preview ≠ print** (colour) | Returns | Soft-proof toggle, CMYK-safe palettes, matte paper disclaimer |
-| **Seasonality** (spring/autumn marathon peaks) | Cash-flow lumpiness | Race calendar marketing; gift seasons (Christmas) |
+| **Free export cannibalises prints** | Revenue | Social-res only; print-res never leaves the server (§6.2) |
+| **Strava API terms / athlete cap** | Strava import limited | Apply early; GPX first-class; follow brand rules |
+| **Medal fit / damage complaints** | Returns, reviews | Fit check in editor; customer inserts the medal; never take custody; clear max-size spec |
+| **Shadow-box shipping damage** (esp. East MY) | Margin | Rigid packaging, courier insurance, test drops |
+| **Local partner capacity at race peaks** | Delays | 2 partners; production SLA; cap daily orders via queue |
+| **Race trademarks** (names/logos) | Takedown | Plain text only, no logos; T&Cs; pursue race partnerships |
+| **Race photo copyright** | IP claims | Rights checkbox; detect watermarked race-photo uploads (P1) |
+| **SST / tax treatment** | Pricing error | Malaysian tax adviser before launch |
+| **Map licensing** | Legal / cost | Self-hosted OSM + attribution |
+| **3D add-on operations** | Breaks automation | Limited P1 drop, jig assembly |
 
 ---
 
 ## 13. Analytics & experiments
-- **Funnel events:** `template_selected` → `background_set` → `route_imported{source}` → `route_adjusted` → `preview_viewed` → `paywall_viewed` → `checkout_started` → `purchased{format,size,addons}`.
-- **Key experiments:** watermark intensity; free template count; digital price point; 3D add-on price; bundle (framed + 3D) vs à la carte.
+- **Funnel:** `template_selected` → `background_set` → `route_imported{source}` → `route_adjusted` → `preview_viewed` → `export_free{format}` / `checkout_started{sku}` → `purchased{sku,size,addons}`.
+- **Viral:** `export_shared{channel}`, `install_attributed{referral_code}`, and K-factor per cohort.
+- **Experiments:**
+  - watermark size/position (shares vs installs)
+  - medal SKU pricing
+  - "Hero Box" bundle vs à la carte
+  - free delivery threshold
 
 ---
 
@@ -391,20 +441,19 @@ All three references are **web React + Tailwind + Motion (framer-motion)** libra
 
 | Phase | Scope | Indicative duration |
 |---|---|---|
-| **0. Validate** | Landing page + manual-concierge orders using the Figma templates; test willingness to pay and 3D interest | 2–3 wks |
-| **1. MVP (P0)** | Editor, 5 templates, photo + map (5 styles), GPX + Strava, 1–2 runners, digital + print + framed, iOS/Android/web | 10–14 wks |
-| **2. Fast follow (P1)** | 3–6 runners, 3D add-on drop, race presets, room mock-ups, gift flow | 6–8 wks |
-| **3. Scale (P2)** | Crew collaborative invites, AR wall preview, B2B race-organiser partnerships (bulk finisher prints), club bundles | — |
+| **0. Validate (MY)** | Landing page + concierge orders via Figma templates at 1–2 Malaysian races; test willingness to pay for framed vs medal box; shortlist + test-print with local partners | 3–4 wks |
+| **1. MVP** | iOS + Android + Web; editor; 8 templates incl. 3 medal-ready; photo + 5 maps; GPX + Strava; 1–2 runners; free watermarked export; print / framed / medal shadow box / hanger bar; MY payments + delivery | 12–14 wks |
+| **2. Fast follow** | 3–6 runners + Crew Medal Box; 3D route drop ("Hero Box"); MY race presets; referral codes; room mock-ups; BM localisation; medal photo background removal | 6–8 wks |
+| **3. Expand** | Singapore → SEA → global (POD adapters per region); race organiser B2B (bulk finisher frames); AR preview | — |
 
 ---
 
-## 15. Open questions for brainstorm
+## 15. Open questions (remaining)
 
-1. **3D route: what exactly is it?** A raised line on the print, a separate desk object, or elevation-extruded? Who prints and assembles it?
-2. **Who is the buyer?** The runner for themselves, or a gifter? That changes whether Strava or GPX is the hero flow.
-3. **Geography at launch:** UK only (like the competitor) or global? This affects POD partner choice, currency and shipping.
-4. **Multi-runner semantics:** did the 6 runners run the *same* race (one route, six times) or *different* races (six routes)? Both double the layout work.
-5. **Freemium boundary:** is the free tier there for **virality** (shareable social image) or **lead capture** (email for discount)? I recommend virality, since every watermarked story share is an ad.
-6. **Brand:** "Miletag" as the consumer name? Check trademark + App Store name availability.
-7. **Expo web:** are you OK shipping web alongside native? I strongly recommend yes.
-8. **Official race partnerships:** worth pursuing early for course GPX + licensed logos + bulk sales?
+1. **3D route definition:** a raised line in the frame, a separate object, or elevation-extruded? In-house or partner? *(Default: raised line inside shadow box / framed only, P1.)*
+2. **Free export resolution:** confirm social-res only, with no print-res file ever delivered (§6.2). *(Default: yes.)*
+3. **Back-label QR on physical prints:** yes or no? *(Default: yes, a small sticker on the back of the frame, not on the art.)*
+4. **Multi-runner semantics:** same race vs different races at launch? *(Default: same race.)*
+5. **Medal SKUs at MVP:** all three, or Shadow Box + Hanger Bar only? *(Default: Shadow Box + Hanger Bar at P0, Crew Medal Box at P1.)*
+6. **Local print partner:** do you already have a printer/framer relationship in Malaysia?
+7. **Race partnerships:** approach Malaysian organisers early for course GPX, official logos and bundled finisher frames?
